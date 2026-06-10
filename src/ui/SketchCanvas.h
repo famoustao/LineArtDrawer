@@ -107,9 +107,6 @@ protected:
     // 缩放滑块同步
     void setZoomFromSlider(int value);
 
-public slots:
-    void setZoom(double zoom);
-
 private:
     QImage backgroundImage_;
     std::vector<Polyline> polylines_;
