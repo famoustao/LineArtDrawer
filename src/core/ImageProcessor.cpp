@@ -9,7 +9,28 @@ ImageProcessor::ImageProcessor() {}
 ImageProcessor::~ImageProcessor() {}
 
 bool ImageProcessor::loadImage(const std::string& path) {
+    // Windows 下使用 imdecode 从内存加载，避免中文路径问题
+    // 先尝试直接 imread
     originalImage_ = cv::imread(path, cv::IMREAD_COLOR);
+    
+    if (originalImage_.empty()) {
+        // 如果直接加载失败，尝试用文件读取 + imdecode 的方式
+        FILE* fp = fopen(path.c_str(), "rb");
+        if (fp) {
+            fseek(fp, 0, SEEK_END);
+            long fileSize = ftell(fp);
+            fseek(fp, 0, SEEK_SET);
+            
+            std::vector<uchar> buffer(fileSize);
+            size_t bytesRead = fread(buffer.data(), 1, fileSize, fp);
+            fclose(fp);
+            
+            if (bytesRead > 0) {
+                originalImage_ = cv::imdecode(buffer, cv::IMREAD_COLOR);
+            }
+        }
+    }
+    
     if (originalImage_.empty()) {
         return false;
     }
