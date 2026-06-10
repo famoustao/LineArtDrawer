@@ -1,0 +1,79 @@
+name: Build Windows Executable
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Install Qt6
+      uses: jurplel/install-qt-action@v3
+      with:
+        version: '6.6.0'
+        host: 'windows'
+        target: 'desktop'
+        arch: 'win64_mingw'
+        modules: 'qtbase'
+        tools: 'tools_mingw90'
+        set-env: true
+        install-deps: true
+
+    - name: Install OpenCV
+      run: |
+        choco install opencv
+
+    - name: Setup MSVC
+      uses: ilammy/msvc-dev-cmd@v1
+      with:
+        arch: x64
+
+    - name: Configure CMake
+      run: |
+        cmake -B build -S . `
+          -G "MinGW Makefiles" `
+          -DCMAKE_BUILD_TYPE=Release `
+          -DCMAKE_PREFIX_PATH="${env:Qt6_DIR};C:\tools\opencv\build" `
+          -DCMAKE_C_COMPILER="C:\ProgramData\chocolatey\lib\mingw\tools\install\mingw64\bin\gcc.exe" `
+          -DCMAKE_CXX_COMPILER="C:\ProgramData\chocolatey\lib\mingw\tools\install\mingw64\bin\g++.exe"
+
+    - name: Build
+      run: cmake --build build --config Release -j4
+
+    - name: Deploy Qt dependencies
+      run: |
+        $qtBinPath = Split-Path -Parent (Get-Command qmake.exe).Source
+        windeployqt.exe --release build/SketchMaster.exe
+
+    - name: Copy OpenCV DLLs
+      run: |
+        $opencvPath = "C:\tools\opencv\build\x64\vc16\bin"
+        if (Test-Path $opencvPath) {
+          Copy-Item "$opencvPath\opencv_core*.dll" build\ -ErrorAction SilentlyContinue
+          Copy-Item "$opencvPath\opencv_imgproc*.dll" build\ -ErrorAction SilentlyContinue
+          Copy-Item "$opencvPath\opencv_imgcodecs*.dll" build\ -ErrorAction SilentlyContinue
+        }
+
+    - name: Copy resources
+      run: |
+        if (Test-Path "resources") {
+          Copy-Item -Recurse -Force "resources" "build\resources"
+        }
+
+    - name: Upload artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: SketchMaster-Windows
+        path: |
+          build/SketchMaster.exe
+          build/*.dll
+          build/resources/
+        retention-days: 30
