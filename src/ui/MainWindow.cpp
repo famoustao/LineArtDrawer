@@ -325,7 +325,7 @@ void MainWindow::onImportImage() {
     
     if (fileName.isEmpty()) return;
     
-    if (!lineArtGenerator_.loadImage(fileName.toStdString())) {
+    if (!lineArtGenerator_.loadImage(fileName.toLocal8Bit().toStdString())) {
         QMessageBox::critical(this, "错误", "无法加载图片文件！");
         return;
     }
@@ -352,7 +352,7 @@ void MainWindow::onImportSVG() {
     
     if (fileName.isEmpty()) return;
     
-    if (!svgImporter_.importFromFile(fileName.toStdString())) {
+    if (!svgImporter_.importFromFile(fileName.toLocal8Bit().toStdString())) {
         QMessageBox::critical(this, "错误", 
             QString("无法导入SVG文件: %1").arg(QString::fromStdString(svgImporter_.getError())));
         return;
@@ -396,7 +396,7 @@ void MainWindow::onExportSVG() {
         height = 600;
     }
 
-    if (!svgExporter_.exportToFile(fileName.toStdString(), polylines, width, height)) {
+    if (!svgExporter_.exportToFile(fileName.toLocal8Bit().toStdString(), polylines, width, height)) {
         QMessageBox::critical(this, "错误", "导出SVG文件失败！");
         return;
     }
@@ -447,7 +447,7 @@ void MainWindow::onTraceToSVG() {
         return;
     }
 
-    if (!imageTracer_.traceToSVG(fileName.toStdString())) {
+    if (!imageTracer_.traceToSVG(fileName.toLocal8Bit().toStdString())) {
         QMessageBox::critical(this, "错误", QString::fromStdString(imageTracer_.getError()));
         return;
     }
