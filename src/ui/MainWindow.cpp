@@ -6,8 +6,9 @@
 #include <QIcon>
 #include <QPixmap>
 #include <QDir>
-#include <QScrollArea>
 #include <QLabel>
+#include <QShortcut>
+#include <QKeySequence>
 
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
@@ -19,31 +20,24 @@ namespace SketchMaster {
 MainWindow::MainWindow(QWidget* parent)
     : QMainWindow(parent)
     , hotkeyManager_(nullptr)
+    , undoShortcut_(nullptr)
     , hasImage_(false)
-    , hasLineArt_(false) {
+    , hasLineArt_(false)
+    , topLeftVkCode_(VK_F7)
+    , topLeftModifiers_(0)
+    , bottomRightVkCode_(VK_F8)
+    , bottomRightModifiers_(0)
+    , startDrawVkCode_(VK_SPACE)
+    , startDrawModifiers_(0)
+    , stopDrawVkCode_(VK_ESCAPE)
+    , stopDrawModifiers_(0) {
     setupUI();
     connectSignals();
     setupHotkeys();
     setupTrayIcon();
     setupIcon();
-    
-    // 创建自定义标题栏部件
-    QWidget* titleBar = new QWidget(this);
-    QHBoxLayout* titleLayout = new QHBoxLayout(titleBar);
-    titleLayout->setContentsMargins(10, 5, 10, 5);
-    
-    QLabel* titleLeft = new QLabel("图片自动绘制工具", this);
-    titleLeft->setStyleSheet("font-size: 14px; font-weight: bold; color: #333;");
-    
-    QLabel* titleRight = new QLabel("涛2026年6月编译", this);
-    titleRight->setStyleSheet("font-size: 12px; color: #666;");
-    titleRight->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
-    
-    titleLayout->addWidget(titleLeft);
-    titleLayout->addStretch();
-    titleLayout->addWidget(titleRight);
-    
-    setWindowTitle("图片转矢量图自动绘图工具");
+
+    setWindowTitle("图片矢量化自动绘图工具");
     resize(1200, 800);
 }
 
@@ -60,47 +54,46 @@ void MainWindow::setupUI() {
     // 创建中央部件
     QWidget* centralWidget = new QWidget(this);
     setCentralWidget(centralWidget);
-    
+
     QHBoxLayout* mainLayout = new QHBoxLayout(centralWidget);
     mainLayout->setContentsMargins(0, 0, 0, 0);
-    
+
     // 创建分割器
     splitter_ = new QSplitter(Qt::Horizontal, this);
-    
+
     // 创建画布
     canvas_ = new SketchCanvas(this);
     splitter_->addWidget(canvas_);
-    
-    // 创建控制面板（放在滚动区域内）
-    QScrollArea* scrollArea = new QScrollArea(this);
-    scrollArea->setWidgetResizable(true);
-    scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-    scrollArea->setMaximumWidth(340);
-    scrollArea->setMinimumWidth(280);
-    
+
+    // 创建控制面板（直接放入splitter，不再使用QScrollArea，因为QTabWidget已解决空间问题）
     controlPanel_ = new ControlPanel(this);
-    scrollArea->setWidget(controlPanel_);
-    splitter_->addWidget(scrollArea);
-    
+    controlPanel_->setMaximumWidth(340);
+    controlPanel_->setMinimumWidth(280);
+    splitter_->addWidget(controlPanel_);
+
     // 设置分割比例
     splitter_->setSizes(QList<int>() << 860 << 340);
-    
+
     mainLayout->addWidget(splitter_);
-    
+
     // 创建状态栏
     QStatusBar* statusBar = new QStatusBar(this);
     setStatusBar(statusBar);
-    
+
     progressBar_ = new QProgressBar(this);
     progressBar_->setRange(0, 100);
     progressBar_->setValue(0);
     progressBar_->setVisible(false);
     statusBar->addPermanentWidget(progressBar_);
-    
+
     countdownLabel_ = new QLabel(this);
     countdownLabel_->setVisible(false);
     statusBar->addWidget(countdownLabel_);
-    
+
+    // Ctrl+Z 撤销快捷键
+    undoShortcut_ = new QShortcut(QKeySequence("Ctrl+Z"), this);
+    connect(undoShortcut_, &QShortcut::activated, this, &MainWindow::onUndo);
+
     updateStatusBar("就绪 - 请导入图片开始。按F7设置左上角，F8设置右下角");
 }
 
@@ -122,13 +115,15 @@ void MainWindow::connectSignals() {
             this, &MainWindow::onDeleteSelected);
     connect(controlPanel_, &ControlPanel::clearAllClicked,
             this, &MainWindow::onClearAll);
+    connect(controlPanel_, &ControlPanel::undoClicked,
+            this, &MainWindow::onUndo);
     connect(controlPanel_, &ControlPanel::resetZoomClicked,
             this, &MainWindow::onResetZoom);
     connect(controlPanel_, &ControlPanel::startDrawingClicked,
             this, &MainWindow::onStartDrawing);
     connect(controlPanel_, &ControlPanel::stopDrawingClicked,
             this, &MainWindow::onStopDrawing);
-    
+
     // 参数变化信号
     connect(controlPanel_, &ControlPanel::contrastChanged,
             this, &MainWindow::onContrastChanged);
@@ -144,7 +139,7 @@ void MainWindow::connectSignals() {
             this, &MainWindow::onDrawingSpeedChanged);
     connect(controlPanel_, &ControlPanel::editModeChanged,
             this, &MainWindow::onEditModeChanged);
-    
+
     // 高精度/像素级/压感控制
     connect(controlPanel_, &ControlPanel::highPrecisionChanged,
             this, &MainWindow::onHighPrecisionChanged);
@@ -152,7 +147,7 @@ void MainWindow::connectSignals() {
             this, &MainWindow::onPixelPerfectChanged);
     connect(controlPanel_, &ControlPanel::pressureLevelChanged,
             this, &MainWindow::onPressureLevelChanged);
-    
+
     // 速度控制按钮
     connect(controlPanel_, &ControlPanel::speedUpClicked,
             this, &MainWindow::onSpeedUp);
@@ -162,7 +157,21 @@ void MainWindow::connectSignals() {
             this, &MainWindow::onTogglePrecision);
     connect(controlPanel_, &ControlPanel::cyclePressureClicked,
             this, &MainWindow::onCyclePressure);
-    
+
+    // 热键设置信号
+    connect(controlPanel_, &ControlPanel::setTopLeftKeyClicked,
+            this, &MainWindow::onSetTopLeftKeyClicked);
+    connect(controlPanel_, &ControlPanel::setBottomRightKeyClicked,
+            this, &MainWindow::onSetBottomRightKeyClicked);
+    connect(controlPanel_, &ControlPanel::setStartDrawKeyClicked,
+            this, &MainWindow::onSetStartDrawKeyClicked);
+    connect(controlPanel_, &ControlPanel::setStopDrawKeyClicked,
+            this, &MainWindow::onSetStopDrawKeyClicked);
+
+    // 延迟时间变化信号
+    connect(controlPanel_, &ControlPanel::delaySecondsChanged,
+            this, &MainWindow::onDelaySecondsChanged);
+
     // 鼠标绘制信号
     connect(&mousePainter_, &MousePainter::drawingStarted,
             this, &MainWindow::onDrawingStarted);
@@ -180,7 +189,7 @@ void MainWindow::connectSignals() {
             this, &MainWindow::onLineFinished);
     connect(&mousePainter_, &MousePainter::countdownTick,
             this, &MainWindow::onCountdownTick);
-    
+
     // 区域选择信号
     connect(&areaSelector_, &DrawingAreaSelector::topLeftSet,
             [this](const QPoint& pt) {
@@ -194,16 +203,31 @@ void MainWindow::connectSignals() {
 
 void MainWindow::setupHotkeys() {
     hotkeyManager_ = new HotkeyManager(this);
-    
+
 #ifdef _WIN32
-    // Windows: 使用虚拟键码 VK_F7(0x76), VK_F8(0x77)
-    hotkeyManager_->registerHotkey(VK_F7, 0, [this]() {
+    // F7: 设置左上角
+    int topLeftId = hotkeyManager_->registerHotkeyDynamic(topLeftVkCode_, topLeftModifiers_, [this]() {
         QMetaObject::invokeMethod(this, &MainWindow::onF7Pressed, Qt::QueuedConnection);
     });
+    controlPanel_->setTopLeftHotkeyId(topLeftId);
 
-    hotkeyManager_->registerHotkey(VK_F8, 0, [this]() {
+    // F8: 设置右下角
+    int bottomRightId = hotkeyManager_->registerHotkeyDynamic(bottomRightVkCode_, bottomRightModifiers_, [this]() {
         QMetaObject::invokeMethod(this, &MainWindow::onF8Pressed, Qt::QueuedConnection);
     });
+    controlPanel_->setBottomRightHotkeyId(bottomRightId);
+
+    // 空格键: 开始绘制
+    int startDrawId = hotkeyManager_->registerHotkeyDynamic(startDrawVkCode_, startDrawModifiers_, [this]() {
+        QMetaObject::invokeMethod(this, &MainWindow::onStartDrawing, Qt::QueuedConnection);
+    });
+    controlPanel_->setStartDrawHotkeyId(startDrawId);
+
+    // ESC: 停止绘制
+    int stopDrawId = hotkeyManager_->registerHotkeyDynamic(stopDrawVkCode_, stopDrawModifiers_, [this]() {
+        QMetaObject::invokeMethod(this, &MainWindow::onStopDrawing, Qt::QueuedConnection);
+    });
+    controlPanel_->setStopDrawHotkeyId(stopDrawId);
 
     // 加速 [+]
     hotkeyManager_->registerHotkey(VK_OEM_PLUS, MOD_CONTROL, [this]() {
@@ -220,10 +244,6 @@ void MainWindow::setupHotkeys() {
     // 切换压感 [C]
     hotkeyManager_->registerHotkey('C', MOD_CONTROL, [this]() {
         QMetaObject::invokeMethod(this, &MainWindow::onCyclePressure, Qt::QueuedConnection);
-    });
-    // 空格键暂停/继续
-    hotkeyManager_->registerHotkey(VK_SPACE, 0, [this]() {
-        QMetaObject::invokeMethod(this, &MainWindow::onStopDrawing, Qt::QueuedConnection);
     });
 #else
     // Linux: 使用X11键码
@@ -246,7 +266,7 @@ void MainWindow::setupTrayIcon() {
               << "resources/icon.png"
               << "../resources/icon.jpg"
               << QApplication::applicationDirPath() + "/resources/icon.jpg";
-    
+
     QIcon icon;
     for (const auto& path : iconPaths) {
         if (QFile::exists(path)) {
@@ -257,28 +277,14 @@ void MainWindow::setupTrayIcon() {
     if (icon.isNull()) {
         icon = QApplication::style()->standardIcon(QStyle::SP_ComputerIcon);
     }
-    
+
     trayIcon_ = new QSystemTrayIcon(icon, this);
     trayIcon_->setToolTip("SketchMaster - 图片转线稿与自动绘制工具");
     trayIcon_->show();
 }
 
 void MainWindow::setupIcon() {
-    QStringList iconPaths;
-    iconPaths << "resources/icon.jpg"
-              << "resources/icon.png"
-              << "../resources/icon.jpg"
-              << QApplication::applicationDirPath() + "/resources/icon.jpg";
-    
-    for (const auto& path : iconPaths) {
-        if (QFile::exists(path)) {
-            QIcon icon(path);
-            setWindowIcon(icon);
-            // 同时设置应用程序图标（影响任务栏）
-            QApplication::setWindowIcon(icon);
-            break;
-        }
-    }
+    // 不设置自定义图标，使用系统默认
 }
 
 void MainWindow::updateStatusBar(const QString& message) {
@@ -290,7 +296,7 @@ void MainWindow::updateStatusBar(const QString& message) {
 void MainWindow::onF7Pressed() {
     // 获取当前鼠标位置作为左上角
     mousePainter_.initialize();
-    
+
     int x = 0, y = 0;
     // 通过MouseController获取当前鼠标位置
     MouseController mc;
@@ -315,6 +321,94 @@ void MainWindow::onF8Pressed() {
     }
 }
 
+// === 热键设置回调 ===
+
+void MainWindow::onSetTopLeftKeyClicked() {
+    controlPanel_->startWaitingForKey("topleft");
+    updateStatusBar("请按下新的左上角快捷键...");
+}
+
+void MainWindow::onSetBottomRightKeyClicked() {
+    controlPanel_->startWaitingForKey("bottomright");
+    updateStatusBar("请按下新的右下角快捷键...");
+}
+
+void MainWindow::onSetStartDrawKeyClicked() {
+    controlPanel_->startWaitingForKey("startdraw");
+    updateStatusBar("请按下新的开始绘制快捷键...");
+}
+
+void MainWindow::onSetStopDrawKeyClicked() {
+    controlPanel_->startWaitingForKey("stopdraw");
+    updateStatusBar("请按下新的停止绘制快捷键...");
+}
+
+// === 动态热键重注册 ===
+
+void MainWindow::reregisterTopLeftHotkey(int vkCode, unsigned int modifiers) {
+    // 注销旧热键
+    int oldId = controlPanel_->getTopLeftHotkeyId();
+    if (oldId > 0) {
+        hotkeyManager_->unregisterHotkey(oldId);
+    }
+    // 注册新热键
+    int newId = hotkeyManager_->registerHotkeyDynamic(vkCode, modifiers, [this]() {
+        QMetaObject::invokeMethod(this, &MainWindow::onF7Pressed, Qt::QueuedConnection);
+    });
+    controlPanel_->setTopLeftHotkeyId(newId);
+    topLeftVkCode_ = vkCode;
+    topLeftModifiers_ = modifiers;
+    updateStatusBar(QString("左上角快捷键已更新为: %1").arg(HotkeyManager::hotkeyName(vkCode, modifiers)));
+}
+
+void MainWindow::reregisterBottomRightHotkey(int vkCode, unsigned int modifiers) {
+    int oldId = controlPanel_->getBottomRightHotkeyId();
+    if (oldId > 0) {
+        hotkeyManager_->unregisterHotkey(oldId);
+    }
+    int newId = hotkeyManager_->registerHotkeyDynamic(vkCode, modifiers, [this]() {
+        QMetaObject::invokeMethod(this, &MainWindow::onF8Pressed, Qt::QueuedConnection);
+    });
+    controlPanel_->setBottomRightHotkeyId(newId);
+    bottomRightVkCode_ = vkCode;
+    bottomRightModifiers_ = modifiers;
+    updateStatusBar(QString("右下角快捷键已更新为: %1").arg(HotkeyManager::hotkeyName(vkCode, modifiers)));
+}
+
+void MainWindow::reregisterStartDrawHotkey(int vkCode, unsigned int modifiers) {
+    int oldId = controlPanel_->getStartDrawHotkeyId();
+    if (oldId > 0) {
+        hotkeyManager_->unregisterHotkey(oldId);
+    }
+    int newId = hotkeyManager_->registerHotkeyDynamic(vkCode, modifiers, [this]() {
+        QMetaObject::invokeMethod(this, &MainWindow::onStartDrawing, Qt::QueuedConnection);
+    });
+    controlPanel_->setStartDrawHotkeyId(newId);
+    startDrawVkCode_ = vkCode;
+    startDrawModifiers_ = modifiers;
+    updateStatusBar(QString("开始绘制快捷键已更新为: %1").arg(HotkeyManager::hotkeyName(vkCode, modifiers)));
+}
+
+void MainWindow::reregisterStopDrawHotkey(int vkCode, unsigned int modifiers) {
+    int oldId = controlPanel_->getStopDrawHotkeyId();
+    if (oldId > 0) {
+        hotkeyManager_->unregisterHotkey(oldId);
+    }
+    int newId = hotkeyManager_->registerHotkeyDynamic(vkCode, modifiers, [this]() {
+        QMetaObject::invokeMethod(this, &MainWindow::onStopDrawing, Qt::QueuedConnection);
+    });
+    controlPanel_->setStopDrawHotkeyId(newId);
+    stopDrawVkCode_ = vkCode;
+    stopDrawModifiers_ = modifiers;
+    updateStatusBar(QString("停止绘制快捷键已更新为: %1").arg(HotkeyManager::hotkeyName(vkCode, modifiers)));
+}
+
+// === 延迟时间变化 ===
+
+void MainWindow::onDelaySecondsChanged(int seconds) {
+    updateStatusBar(QString("延迟时间已设置为: %1 秒").arg(seconds));
+}
+
 // === 文件操作槽函数 ===
 
 void MainWindow::onImportImage() {
@@ -322,22 +416,22 @@ void MainWindow::onImportImage() {
         "导入图片",
         QString(),
         "图片文件 (*.png *.jpg *.jpeg *.bmp *.tiff *.gif);;所有文件 (*)");
-    
+
     if (fileName.isEmpty()) return;
-    
+
     if (!lineArtGenerator_.loadImage(fileName.toLocal8Bit().toStdString())) {
         QMessageBox::critical(this, "错误", "无法加载图片文件！");
         return;
     }
-    
+
     currentImagePath_ = fileName;
     hasImage_ = true;
     hasLineArt_ = false;
-    
+
     // 显示原始图片
     canvas_->setBackgroundImage(lineArtGenerator_.getOriginalImage());
     canvas_->clearPolylines();
-    
+
     updateStatusBar(QString("已加载图片: %1 (%2x%3)")
         .arg(fileName)
         .arg(lineArtGenerator_.getWidth())
@@ -349,24 +443,24 @@ void MainWindow::onImportSVG() {
         "导入SVG线稿",
         QString(),
         "SVG文件 (*.svg);;所有文件 (*)");
-    
+
     if (fileName.isEmpty()) return;
-    
+
     if (!svgImporter_.importFromFile(fileName.toLocal8Bit().toStdString())) {
-        QMessageBox::critical(this, "错误", 
+        QMessageBox::critical(this, "错误",
             QString("无法导入SVG文件: %1").arg(QString::fromStdString(svgImporter_.getError())));
         return;
     }
-    
+
     auto polylines = svgImporter_.getPolylines();
     if (polylines.empty()) {
         QMessageBox::warning(this, "警告", "SVG文件中没有找到可绘制的路径！");
         return;
     }
-    
+
     canvas_->setPolylines(polylines);
     hasLineArt_ = true;
-    
+
     updateStatusBar(QString("已导入SVG: %1 条路径").arg(polylines.size()));
 }
 
@@ -464,26 +558,26 @@ void MainWindow::onGenerateLineArt() {
         QMessageBox::warning(this, "警告", "请先导入图片！");
         return;
     }
-    
+
     updateStatusBar("正在生成线稿...");
     QApplication::processEvents();
-    
+
     double contrast = controlPanel_->getContrast();
     int blurSize = controlPanel_->getBlurSize();
     double mergeDistance = controlPanel_->getMergeDistance();
     double simplifyEpsilon = controlPanel_->getSimplifyEpsilon();
-    
+
     auto polylines = lineArtGenerator_.generateLineArt(
         contrast, blurSize, mergeDistance, simplifyEpsilon);
-    
+
     if (polylines.empty()) {
         QMessageBox::warning(this, "警告", "未能生成线稿，请尝试调整参数！");
         return;
     }
-    
+
     canvas_->setPolylines(polylines);
     hasLineArt_ = true;
-    
+
     updateStatusBar(QString("线稿生成完成: %1 条路径").arg(polylines.size()));
 }
 
@@ -492,24 +586,24 @@ void MainWindow::onGenerateCanny() {
         QMessageBox::warning(this, "警告", "请先导入图片！");
         return;
     }
-    
+
     updateStatusBar("正在使用Canny边缘检测生成线稿...");
     QApplication::processEvents();
-    
+
     double mergeDistance = controlPanel_->getMergeDistance();
     double simplifyEpsilon = controlPanel_->getSimplifyEpsilon();
-    
+
     auto polylines = lineArtGenerator_.generateLineArtCanny(
         50, 150, mergeDistance, simplifyEpsilon);
-    
+
     if (polylines.empty()) {
         QMessageBox::warning(this, "警告", "未能生成线稿，请尝试调整参数！");
         return;
     }
-    
+
     canvas_->setPolylines(polylines);
     hasLineArt_ = true;
-    
+
     updateStatusBar(QString("Canny线稿生成完成: %1 条路径").arg(polylines.size()));
 }
 
@@ -592,6 +686,7 @@ void MainWindow::onEditModeChanged(int mode) {
         case EditMode::Select: modeStr = "选择模式"; break;
         case EditMode::Draw: modeStr = "手绘模式"; break;
         case EditMode::Erase: modeStr = "擦除模式"; break;
+        case EditMode::Cut: modeStr = "切割模式 (点击线段切割)"; break;
     }
     updateStatusBar(QString("编辑模式: %1").arg(modeStr));
 }
@@ -609,6 +704,15 @@ void MainWindow::onClearAll() {
     }
 }
 
+void MainWindow::onUndo() {
+    if (canvas_->canUndo()) {
+        canvas_->undo();
+        updateStatusBar("已撤销上一步操作");
+    } else {
+        updateStatusBar("没有可撤销的操作");
+    }
+}
+
 void MainWindow::onResetZoom() {
     canvas_->resetZoom();
 }
@@ -621,16 +725,17 @@ void MainWindow::onStartDrawing() {
         QMessageBox::warning(this, "警告", "没有可绘制的线稿！");
         return;
     }
-    
+
     // 设置绘制参数
     mousePainter_.setPolylines(polylines);
     mousePainter_.setSpeed(controlPanel_->getDrawingSpeed());
     mousePainter_.setDrawingAreaSelector(&areaSelector_);
     mousePainter_.setLineArtSize(lineArtGenerator_.getWidth(), lineArtGenerator_.getHeight());
-    
-    // 设置3秒延迟
-    mousePainter_.setPreDrawDelay(3000);
-    
+
+    // 使用控制面板中的延迟时间（默认10秒，范围3-60秒）
+    int delaySeconds = controlPanel_->getDelaySeconds();
+    mousePainter_.setPreDrawDelay(delaySeconds * 1000);
+
     // 如果区域未设置，使用默认居中
     if (!areaSelector_.isValid()) {
         QScreen* screen = QApplication::primaryScreen();
@@ -641,7 +746,7 @@ void MainWindow::onStartDrawing() {
             mousePainter_.setOffset(offsetX, offsetY);
         }
     }
-    
+
     mousePainter_.startDrawing();
 }
 

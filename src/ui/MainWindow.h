@@ -8,6 +8,7 @@
 #include <QProgressBar>
 #include <QLabel>
 #include <QSystemTrayIcon>
+#include <QShortcut>
 #include "SketchCanvas.h"
 #include "ControlPanel.h"
 #include "../core/LineArtGenerator.h"
@@ -34,11 +35,11 @@ private slots:
     void onImportSVG();
     void onExportSVG();
     void onTraceToSVG();
-    
+
     // 线稿生成
     void onGenerateLineArt();
     void onGenerateCanny();
-    
+
     // 参数变化
     void onContrastChanged(double value);
     void onBlurSizeChanged(int value);
@@ -49,23 +50,24 @@ private slots:
     void onHighPrecisionChanged(bool enabled);
     void onPixelPerfectChanged(bool enabled);
     void onPressureLevelChanged(int level);
-    
+
     // 速度/精度/压感快捷控制
     void onSpeedUp();
     void onSpeedDown();
     void onTogglePrecision();
     void onCyclePressure();
-    
+
     // 编辑控制
     void onEditModeChanged(int mode);
     void onDeleteSelected();
     void onClearAll();
+    void onUndo();
     void onResetZoom();
-    
+
     // 鼠标绘制
     void onStartDrawing();
     void onStopDrawing();
-    
+
     // 绘制状态
     void onDrawingStarted();
     void onDrawingFinished();
@@ -75,10 +77,19 @@ private slots:
     void onLineStarted(int lineIndex);
     void onLineFinished(int lineIndex);
     void onCountdownTick(int secondsLeft);
-    
+
     // 热键回调
     void onF7Pressed();
     void onF8Pressed();
+
+    // 热键设置回调
+    void onSetTopLeftKeyClicked();
+    void onSetBottomRightKeyClicked();
+    void onSetStartDrawKeyClicked();
+    void onSetStopDrawKeyClicked();
+
+    // 延迟时间变化
+    void onDelaySecondsChanged(int seconds);
 
 private:
     void setupUI();
@@ -87,7 +98,13 @@ private:
     void setupHotkeys();
     void setupTrayIcon();
     void setupIcon();
-    
+
+    // 重新注册单个热键（用于动态更新）
+    void reregisterTopLeftHotkey(int vkCode, unsigned int modifiers);
+    void reregisterBottomRightHotkey(int vkCode, unsigned int modifiers);
+    void reregisterStartDrawHotkey(int vkCode, unsigned int modifiers);
+    void reregisterStopDrawHotkey(int vkCode, unsigned int modifiers);
+
     // 核心组件
     LineArtGenerator lineArtGenerator_;
     SVGExporter svgExporter_;
@@ -96,7 +113,7 @@ private:
     MousePainter mousePainter_;
     DrawingAreaSelector areaSelector_;
     HotkeyManager* hotkeyManager_;
-    
+
     // UI组件
     QSplitter* splitter_;
     SketchCanvas* canvas_;
@@ -104,11 +121,22 @@ private:
     QProgressBar* progressBar_;
     QLabel* countdownLabel_;
     QSystemTrayIcon* trayIcon_;
-    
+    QShortcut* undoShortcut_;
+
     // 当前状态
     bool hasImage_;
     bool hasLineArt_;
     QString currentImagePath_;
+
+    // 当前热键的键码和修饰键（用于动态重注册）
+    int topLeftVkCode_;
+    unsigned int topLeftModifiers_;
+    int bottomRightVkCode_;
+    unsigned int bottomRightModifiers_;
+    int startDrawVkCode_;
+    unsigned int startDrawModifiers_;
+    int stopDrawVkCode_;
+    unsigned int stopDrawModifiers_;
 };
 
 } // namespace SketchMaster
