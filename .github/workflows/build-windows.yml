@@ -72,6 +72,25 @@ jobs:
     - name: Deploy Qt dependencies
       run: |
         C:\Qt\6.6.3\msvc2019_64\bin\windeployqt.exe --release build\Release\SketchMaster.exe
+        # 确保 platforms 目录被复制
+        if (Test-Path "C:\Qt\6.6.3\msvc2019_64\plugins\platforms") {
+          if (-not (Test-Path "build\Release\platforms")) {
+            New-Item -ItemType Directory -Path "build\Release\platforms" -Force
+          }
+          Copy-Item -Recurse -Force "C:\Qt\6.6.3\msvc2019_64\plugins\platforms\*" "build\Release\platforms\"
+          Write-Host "Copied Qt platforms plugins"
+        }
+        # 复制其他必要的 Qt 插件目录
+        $qtPlugins = @("imageformats", "iconengines", "styles")
+        foreach ($plugin in $qtPlugins) {
+          if (Test-Path "C:\Qt\6.6.3\msvc2019_64\plugins\$plugin") {
+            if (-not (Test-Path "build\Release\$plugin")) {
+              New-Item -ItemType Directory -Path "build\Release\$plugin" -Force
+            }
+            Copy-Item -Recurse -Force "C:\Qt\6.6.3\msvc2019_64\plugins\$plugin\*" "build\Release\$plugin\"
+            Write-Host "Copied Qt plugin: $plugin"
+          }
+        }
 
     - name: Copy ALL vcpkg DLLs to output
       run: |
@@ -98,5 +117,9 @@ jobs:
         path: |
           build/Release/SketchMaster.exe
           build/Release/*.dll
+          build/Release/platforms/
+          build/Release/imageformats/
+          build/Release/iconengines/
+          build/Release/styles/
           build/Release/resources/
         retention-days: 30
