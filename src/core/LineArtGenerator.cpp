@@ -1,6 +1,5 @@
 #include "LineArtGenerator.h"
 #include <opencv2/opencv.hpp>
-#include <opencv2/line_descriptor.hpp>
 
 namespace SketchMaster {
 
