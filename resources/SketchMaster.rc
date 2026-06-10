@@ -15,10 +15,10 @@ FILESUBTYPE    VFT2_UNKNOWN
 BEGIN
     BLOCK "StringFileInfo"
     BEGIN
-        BLOCK "080404b0"
+        BLOCK "040904b0"
         BEGIN
             VALUE "CompanyName", "SketchMaster"
-            VALUE "FileDescription", "图片转矢量图自动绘图工具"
+            VALUE "FileDescription", "SketchMaster"
             VALUE "FileVersion", "1.0.0.0"
             VALUE "InternalName", "SketchMaster.exe"
             VALUE "LegalCopyright", "Copyright (C) 2026"
@@ -29,6 +29,6 @@ BEGIN
     END
     BLOCK "VarFileInfo"
     BEGIN
-        VALUE "Translation", 0x804, 1200
+        VALUE "Translation", 0x0409, 1200
     END
 END
