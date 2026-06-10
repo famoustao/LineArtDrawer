@@ -340,10 +340,7 @@ void MainWindow::onF8Pressed() {
         // F8设置右下角后，如果区域有效，自动开始倒计时并绘制
         if (areaSelector_.isValid()) {
             updateStatusBar("绘制区域已确定，即将自动开始倒计时...");
-            // 延迟一小段时间后自动开始绘制（让用户看到状态更新）
-            QTimer::singleShot(500, this, [this]() {
-                onStartDrawing();
-            });
+            onStartDrawing();
         }
     } else {
         updateStatusBar("无法获取鼠标位置");
@@ -788,7 +785,26 @@ void MainWindow::onStartDrawing() {
     mousePainter_.setPolylines(polylines);
     mousePainter_.setSpeed(controlPanel_->getDrawingSpeed());
     mousePainter_.setDrawingAreaSelector(&areaSelector_);
-    mousePainter_.setLineArtSize(lineArtGenerator_.getWidth(), lineArtGenerator_.getHeight());
+
+    // 如果 lineArtGenerator 宽高为0（比如通过导入SVG加载的），从 polylines 计算边界框
+    int artWidth = lineArtGenerator_.getWidth();
+    int artHeight = lineArtGenerator_.getHeight();
+    if (artWidth <= 0 || artHeight <= 0) {
+        double minX = 1e9, minY = 1e9, maxX = -1e9, maxY = -1e9;
+        for (const auto& poly : polylines) {
+            for (const auto& pt : poly.points) {
+                if (pt.x < minX) minX = pt.x;
+                if (pt.y < minY) minY = pt.y;
+                if (pt.x > maxX) maxX = pt.x;
+                if (pt.y > maxY) maxY = pt.y;
+            }
+        }
+        artWidth = static_cast<int>(maxX - minX) + 1;
+        artHeight = static_cast<int>(maxY - minY) + 1;
+        if (artWidth <= 0) artWidth = 800;
+        if (artHeight <= 0) artHeight = 600;
+    }
+    mousePainter_.setLineArtSize(artWidth, artHeight);
 
     // 使用控制面板中的延迟时间（默认5秒，范围3-60秒）
     int delaySeconds = controlPanel_->getDelaySeconds();
@@ -799,8 +815,8 @@ void MainWindow::onStartDrawing() {
         QScreen* screen = QApplication::primaryScreen();
         if (screen) {
             QRect screenGeometry = screen->geometry();
-            int offsetX = (screenGeometry.width() - lineArtGenerator_.getWidth()) / 2;
-            int offsetY = (screenGeometry.height() - lineArtGenerator_.getHeight()) / 2;
+            int offsetX = (screenGeometry.width() - artWidth) / 2;
+            int offsetY = (screenGeometry.height() - artHeight) / 2;
             mousePainter_.setOffset(offsetX, offsetY);
         }
     }
