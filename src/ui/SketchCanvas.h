@@ -91,14 +91,14 @@ public:
     // 获取当前画布状态
     CanvasState getCanvasState() const { return canvasState_; }
 
+    // 缩放滑块同步
+    void setZoomFromSlider(int value);
+
 signals:
     void polylineSelected(int index);
     void polylineModified();
     void cutModeChanged(bool active);
     void drawModeChanged(bool active);
-
-    // 缩放滑块同步
-    void setZoomFromSlider(int value);
 
 protected:
     void paintEvent(QPaintEvent* event) override;
