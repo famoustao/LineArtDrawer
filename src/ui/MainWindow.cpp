@@ -7,6 +7,7 @@
 #include <QPixmap>
 #include <QDir>
 #include <QScrollArea>
+#include <QLabel>
 
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
@@ -26,7 +27,23 @@ MainWindow::MainWindow(QWidget* parent)
     setupTrayIcon();
     setupIcon();
     
-    setWindowTitle("图片转矢量图自动绘图工具，涛2026年6月编译");
+    // 创建自定义标题栏部件
+    QWidget* titleBar = new QWidget(this);
+    QHBoxLayout* titleLayout = new QHBoxLayout(titleBar);
+    titleLayout->setContentsMargins(10, 5, 10, 5);
+    
+    QLabel* titleLeft = new QLabel("图片自动绘制工具", this);
+    titleLeft->setStyleSheet("font-size: 14px; font-weight: bold; color: #333;");
+    
+    QLabel* titleRight = new QLabel("涛2026年6月编译", this);
+    titleRight->setStyleSheet("font-size: 12px; color: #666;");
+    titleRight->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+    
+    titleLayout->addWidget(titleLeft);
+    titleLayout->addStretch();
+    titleLayout->addWidget(titleRight);
+    
+    setWindowTitle("图片转矢量图自动绘图工具");
     resize(1200, 800);
 }
 
