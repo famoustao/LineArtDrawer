@@ -9,6 +9,7 @@
 #include <QLabel>
 #include <QShortcut>
 #include <QKeySequence>
+#include <QTimer>
 
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
@@ -65,7 +66,7 @@ void MainWindow::setupUI() {
     canvas_ = new SketchCanvas(this);
     splitter_->addWidget(canvas_);
 
-    // 创建控制面板（直接放入splitter，不再使用QScrollArea，因为QTabWidget已解决空间问题）
+    // 创建控制面板
     controlPanel_ = new ControlPanel(this);
     controlPanel_->setMaximumWidth(340);
     controlPanel_->setMinimumWidth(280);
@@ -130,6 +131,14 @@ void MainWindow::connectSignals() {
     connect(controlPanel_, &ControlPanel::stopDrawingClicked,
             this, &MainWindow::onStopDrawing);
 
+    // 新增信号连接：切割/合并/手绘模式
+    connect(controlPanel_, &ControlPanel::cutModeToggled,
+            this, &MainWindow::onCutModeToggled);
+    connect(controlPanel_, &ControlPanel::smartMergeClicked,
+            this, &MainWindow::onSmartMergeClicked);
+    connect(controlPanel_, &ControlPanel::drawModeToggled,
+            this, &MainWindow::onDrawModeToggled);
+
     // 参数变化信号
     connect(controlPanel_, &ControlPanel::contrastChanged,
             this, &MainWindow::onContrastChanged);
@@ -143,8 +152,6 @@ void MainWindow::connectSignals() {
             this, &MainWindow::onBackgroundOpacityChanged);
     connect(controlPanel_, &ControlPanel::drawingSpeedChanged,
             this, &MainWindow::onDrawingSpeedChanged);
-    connect(controlPanel_, &ControlPanel::editModeChanged,
-            this, &MainWindow::onEditModeChanged);
 
     // 高精度/像素级/压感控制
     connect(controlPanel_, &ControlPanel::highPrecisionChanged,
@@ -205,6 +212,14 @@ void MainWindow::connectSignals() {
             [this](const QPoint& pt) {
                 updateStatusBar(QString("已设置右下角: (%1, %2)").arg(pt.x()).arg(pt.y()));
             });
+
+    // 画布切割模式状态变化 -> 同步更新控制面板按钮
+    connect(canvas_, &SketchCanvas::cutModeChanged,
+            controlPanel_, &ControlPanel::setCutModeActive);
+
+    // 画布手绘模式状态变化 -> 同步更新控制面板按钮
+    connect(canvas_, &SketchCanvas::drawModeChanged,
+            controlPanel_, &ControlPanel::setDrawModeActive);
 }
 
 void MainWindow::setupHotkeys() {
@@ -304,7 +319,6 @@ void MainWindow::onF7Pressed() {
     mousePainter_.initialize();
 
     int x = 0, y = 0;
-    // 通过MouseController获取当前鼠标位置
     MouseController mc;
     mc.initialize();
     if (mc.getCurrentPosition(x, y)) {
@@ -322,6 +336,15 @@ void MainWindow::onF8Pressed() {
     if (mc.getCurrentPosition(x, y)) {
         areaSelector_.setBottomRight(QPoint(x, y));
         updateStatusBar(QString("已设置右下角: (%1, %2)，绘制区域已确定").arg(x).arg(y));
+
+        // F8设置右下角后，如果区域有效，自动开始倒计时并绘制
+        if (areaSelector_.isValid()) {
+            updateStatusBar("绘制区域已确定，即将自动开始倒计时...");
+            // 延迟一小段时间后自动开始绘制（让用户看到状态更新）
+            QTimer::singleShot(500, this, [this]() {
+                onStartDrawing();
+            });
+        }
     } else {
         updateStatusBar("无法获取鼠标位置");
     }
@@ -684,18 +707,37 @@ void MainWindow::onCyclePressure() {
 
 // === 编辑控制槽函数 ===
 
-void MainWindow::onEditModeChanged(int mode) {
-    canvas_->setEditMode(static_cast<EditMode>(mode));
-    QString modeStr;
-    switch (static_cast<EditMode>(mode)) {
-        case EditMode::View: modeStr = "查看模式"; break;
-        case EditMode::Select: modeStr = "选择模式"; break;
-        case EditMode::Draw: modeStr = "手绘模式"; break;
-        case EditMode::Erase: modeStr = "擦除模式"; break;
-        case EditMode::Cut: modeStr = "切割模式 (点击线段切割)"; break;
-        case EditMode::Composite: modeStr = "综合模式 (左键选择/切割, 右键删除)"; break;
+void MainWindow::onCutModeToggled(bool active) {
+    if (active) {
+        // 如果手绘模式正在使用，先退出
+        if (canvas_->getCanvasState() == CanvasState::Drawing) {
+            canvas_->stopDrawMode();
+        }
+        canvas_->startCutMode();
+        updateStatusBar("切割模式：左键画切割线，右键退出");
+    } else {
+        canvas_->stopCutMode();
+        updateStatusBar("已退出切割模式");
     }
-    updateStatusBar(QString("编辑模式: %1").arg(modeStr));
+}
+
+void MainWindow::onSmartMergeClicked() {
+    canvas_->smartMergeAll();
+    updateStatusBar("智能合并完成");
+}
+
+void MainWindow::onDrawModeToggled(bool active) {
+    if (active) {
+        // 如果切割模式正在使用，先退出
+        if (canvas_->getCanvasState() == CanvasState::Cutting) {
+            canvas_->stopCutMode();
+        }
+        canvas_->startDrawMode();
+        updateStatusBar("手绘模式：左键手绘，再次点击退出");
+    } else {
+        canvas_->stopDrawMode();
+        updateStatusBar("已退出手绘模式");
+    }
 }
 
 void MainWindow::onDeleteSelected() {
@@ -748,7 +790,7 @@ void MainWindow::onStartDrawing() {
     mousePainter_.setDrawingAreaSelector(&areaSelector_);
     mousePainter_.setLineArtSize(lineArtGenerator_.getWidth(), lineArtGenerator_.getHeight());
 
-    // 使用控制面板中的延迟时间（默认10秒，范围3-60秒）
+    // 使用控制面板中的延迟时间（默认5秒，范围3-60秒）
     int delaySeconds = controlPanel_->getDelaySeconds();
     mousePainter_.setPreDrawDelay(delaySeconds * 1000);
 

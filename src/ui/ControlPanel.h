@@ -70,6 +70,12 @@ public:
     // 进入等待按键模式
     void startWaitingForKey(const QString& which);
 
+    // 更新切割模式按钮状态
+    void setCutModeActive(bool active);
+
+    // 更新手绘模式按钮状态
+    void setDrawModeActive(bool active);
+
 signals:
     // 线稿生成相关
     void generateLineArtClicked();
@@ -91,11 +97,15 @@ signals:
     void pressureLevelChanged(int level);
 
     // 编辑控制
-    void editModeChanged(int mode); // 0=View, 1=Select, 2=Draw, 3=Erase
     void deleteSelectedClicked();
     void clearAllClicked();
     void undoClicked();
     void redoClicked();
+
+    // 新增：切割/合并/手绘模式信号
+    void cutModeToggled(bool active);
+    void smartMergeClicked();
+    void drawModeToggled(bool active);
 
     // 鼠标绘制控制
     void startDrawingClicked();
@@ -141,9 +151,6 @@ private:
     QCheckBox* pixelPerfectCheck_;
     QComboBox* pressureCombo_;
 
-    // 编辑模式
-    QComboBox* editModeCombo_;
-
     // 按钮
     QPushButton* importImageBtn_;
     QPushButton* generateBtn_;
@@ -162,6 +169,11 @@ private:
     QPushButton* speedDownBtn_;
     QPushButton* togglePrecisionBtn_;
     QPushButton* cyclePressureBtn_;
+
+    // 新增按钮：切割、智能合并、手绘模式
+    QPushButton* cutBtn_;
+    QPushButton* smartMergeBtn_;
+    QPushButton* drawModeBtn_;
 
     // 图像追踪参数
     QSpinBox* traceColorsSpin_;

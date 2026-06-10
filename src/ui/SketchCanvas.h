@@ -4,19 +4,19 @@
 #include <QImage>
 #include <QPainter>
 #include <QStack>
+#include <QMenu>
 #include <vector>
 #include "../core/PathSimplifier.h"
 
 namespace SketchMaster {
 
-// 编辑模式
-enum class EditMode {
-    View,       // 查看模式
-    Select,     // 选择模式
-    Draw,       // 手绘模式
-    Erase,      // 擦除模式
-    Cut,        // 切割模式
-    Composite   // 综合模式（选择+切割+删除）
+// 画布编辑状态
+enum class CanvasState {
+    Idle,           // 空闲（左键点击选中线段，右键弹出菜单）
+    DraggingPoint,  // 拖拽线段端点（延长/缩短）
+    DraggingLine,   // 拖拽整条线段
+    Cutting,        // 切割模式（画直线）
+    Drawing         // 手绘模式
 };
 
 // 线稿画布：支持可视化编辑
@@ -35,10 +35,6 @@ public:
     void setPolylines(const std::vector<Polyline>& polylines);
     std::vector<Polyline> getPolylines() const { return polylines_; }
 
-    // 设置编辑模式
-    void setEditMode(EditMode mode) { editMode_ = mode; }
-    EditMode getEditMode() const { return editMode_; }
-
     // 设置底图透明度
     void setBackgroundOpacity(double opacity);
 
@@ -55,9 +51,6 @@ public:
 
     // 删除选中的路径
     void deleteSelectedPolyline();
-
-    // 切割选中的路径（在最近点处一分为二）
-    void cutSelectedPolyline(const QPoint& cutPos);
 
     // 清空所有路径
     void clearPolylines();
@@ -77,9 +70,32 @@ public:
     // 查询重做栈是否为空
     bool canRedo() const { return !redoStack_.isEmpty(); }
 
+    // 进入切割模式
+    void startCutMode();
+
+    // 退出切割模式
+    void stopCutMode();
+
+    // 进入手绘模式
+    void startDrawMode();
+
+    // 退出手绘模式
+    void stopDrawMode();
+
+    // 合并选中线段与相近线段
+    void mergeSelectedWithNearby();
+
+    // 智能合并所有相近线段
+    void smartMergeAll();
+
+    // 获取当前画布状态
+    CanvasState getCanvasState() const { return canvasState_; }
+
 signals:
     void polylineSelected(int index);
     void polylineModified();
+    void cutModeChanged(bool active);
+    void drawModeChanged(bool active);
 
 protected:
     void paintEvent(QPaintEvent* event) override;
@@ -91,7 +107,7 @@ protected:
 private:
     QImage backgroundImage_;
     std::vector<Polyline> polylines_;
-    EditMode editMode_;
+    CanvasState canvasState_;
     double backgroundOpacity_;
     QColor lineColor_;
     double zoom_;
@@ -102,6 +118,15 @@ private:
     Polyline currentPolyline_;
     int selectedPolylineIndex_;
     QPoint lastMousePos_;
+
+    // 拖拽状态
+    int draggingPointIndex_;  // 正在拖拽的端点索引（0=起点，1=终点）
+    QPoint dragStartPos_;     // 拖拽开始时的鼠标位置
+    std::vector<Point2D> dragOriginalPoints_; // 拖拽开始时的原始点集
+
+    // 切割状态
+    QPoint cutLineStart_;
+    QPoint cutLineEnd_;
 
     // 撤销栈（最大20步）
     QStack<QVector<Polyline>> undoStack_;
@@ -117,6 +142,9 @@ private:
     // 绘制选中高亮
     void drawSelection(QPainter& painter);
 
+    // 绘制切割线
+    void drawCutLine(QPainter& painter);
+
     // 坐标转换
     QPoint worldToScreen(const Point2D& pt) const;
     Point2D screenToWorld(const QPoint& pt) const;
@@ -129,6 +157,22 @@ private:
 
     // 计算点到路径的距离
     double distanceToPolyline(const QPoint& pos, const Polyline& poly);
+
+    // 查找最近的端点
+    int findNearestEndpoint(const QPoint& pos, int polyIndex, double threshold = 10.0);
+    // 返回值: 0=起点, 1=终点, -1=没找到
+
+    // 显示右键菜单
+    void showContextMenu(const QPoint& pos);
+
+    // 执行切割
+    void executeCut();
+
+    // 线段相交检测（世界坐标）
+    // 返回true表示两线段相交，intersection为交点
+    static bool segmentIntersection(const Point2D& a1, const Point2D& a2,
+                                     const Point2D& b1, const Point2D& b2,
+                                     Point2D& intersection);
 };
 
 } // namespace SketchMaster

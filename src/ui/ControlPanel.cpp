@@ -120,29 +120,36 @@ void ControlPanel::setupUI() {
 
     tab2Layout->addWidget(genGroup);
 
-    // 编辑模式组
-    QGroupBox* editGroup = new QGroupBox("编辑模式", this);
+    // 编辑操作组（替换原来的编辑模式下拉框）
+    QGroupBox* editGroup = new QGroupBox("编辑操作", this);
     QVBoxLayout* editLayout = new QVBoxLayout(editGroup);
 
-    editModeCombo_ = new QComboBox(this);
-    editModeCombo_->addItem("查看模式", 0);
-    editModeCombo_->addItem("选择模式", 1);
-    editModeCombo_->addItem("手绘模式", 2);
-    editModeCombo_->addItem("擦除模式", 3);
-    editModeCombo_->addItem("切割模式", 4);
-    editModeCombo_->addItem("综合模式 (选择+切割+删除)", 5);
-    editLayout->addWidget(editModeCombo_);
-
-    QHBoxLayout* editBtnLayout = new QHBoxLayout();
+    // 第一行按钮：撤销、重做、删除选中、清空全部
+    QHBoxLayout* editBtnLayout1 = new QHBoxLayout();
+    undoBtn_ = new QPushButton("撤销", this);
+    redoBtn_ = new QPushButton("重做", this);
     deleteBtn_ = new QPushButton("删除选中", this);
     clearBtn_ = new QPushButton("清空全部", this);
-    undoBtn_ = new QPushButton("撤销 [Ctrl+Z]", this);
-    redoBtn_ = new QPushButton("重做 [Ctrl+Y]", this);
-    editBtnLayout->addWidget(undoBtn_);
-    editBtnLayout->addWidget(redoBtn_);
-    editBtnLayout->addWidget(deleteBtn_);
-    editBtnLayout->addWidget(clearBtn_);
-    editLayout->addLayout(editBtnLayout);
+    editBtnLayout1->addWidget(undoBtn_);
+    editBtnLayout1->addWidget(redoBtn_);
+    editBtnLayout1->addWidget(deleteBtn_);
+    editBtnLayout1->addWidget(clearBtn_);
+    editLayout->addLayout(editBtnLayout1);
+
+    // 第二行按钮：切割线段、智能合并、手绘模式
+    QHBoxLayout* editBtnLayout2 = new QHBoxLayout();
+    cutBtn_ = new QPushButton("切割线段", this);
+    cutBtn_->setCheckable(true);
+    cutBtn_->setToolTip("左键画切割线，右键退出切割模式");
+    smartMergeBtn_ = new QPushButton("智能合并", this);
+    smartMergeBtn_->setToolTip("自动合并所有端点相近的线段");
+    drawModeBtn_ = new QPushButton("手绘模式", this);
+    drawModeBtn_->setCheckable(true);
+    drawModeBtn_->setToolTip("左键手绘新线段，再次点击退出手绘模式");
+    editBtnLayout2->addWidget(cutBtn_);
+    editBtnLayout2->addWidget(smartMergeBtn_);
+    editBtnLayout2->addWidget(drawModeBtn_);
+    editLayout->addLayout(editBtnLayout2);
 
     tab2Layout->addWidget(editGroup);
 
@@ -188,7 +195,7 @@ void ControlPanel::setupUI() {
     drawParamLayout->addWidget(new QLabel("延迟时间(秒):", this), 1, 0);
     delaySpin_ = new QSpinBox(this);
     delaySpin_->setRange(3, 60);
-    delaySpin_->setValue(10);
+    delaySpin_->setValue(5);  // 默认改为5秒
     delaySpin_->setSingleStep(1);
     delaySpin_->setToolTip("绘制开始前的延迟时间（3-60秒）");
     drawParamLayout->addWidget(delaySpin_, 1, 1);
@@ -373,6 +380,19 @@ void ControlPanel::connectSignals() {
     connect(togglePrecisionBtn_, &QPushButton::clicked, this, &ControlPanel::togglePrecisionClicked);
     connect(cyclePressureBtn_, &QPushButton::clicked, this, &ControlPanel::cyclePressureClicked);
 
+    // 新增按钮信号：切割模式（切换）
+    connect(cutBtn_, &QPushButton::toggled, this, [this](bool checked) {
+        emit cutModeToggled(checked);
+    });
+
+    // 智能合并
+    connect(smartMergeBtn_, &QPushButton::clicked, this, &ControlPanel::smartMergeClicked);
+
+    // 手绘模式（切换）
+    connect(drawModeBtn_, &QPushButton::toggled, this, [this](bool checked) {
+        emit drawModeToggled(checked);
+    });
+
     // 热键设置按钮信号
     connect(setTopLeftKeyBtn_, &QPushButton::clicked, this, &ControlPanel::setTopLeftKeyClicked);
     connect(setBottomRightKeyBtn_, &QPushButton::clicked, this, &ControlPanel::setBottomRightKeyClicked);
@@ -410,10 +430,28 @@ void ControlPanel::connectSignals() {
         opacityLabel_->setText(QString::number(value) + "%");
         emit backgroundOpacityChanged(value / 100.0);
     });
+}
 
-    // 编辑模式
-    connect(editModeCombo_, QOverload<int>::of(&QComboBox::currentIndexChanged),
-            this, &ControlPanel::editModeChanged);
+void ControlPanel::setCutModeActive(bool active) {
+    cutBtn_->setChecked(active);
+    if (active) {
+        cutBtn_->setStyleSheet("background-color: #ffcccc; font-weight: bold;");
+        cutBtn_->setText("切割线段 (开)");
+    } else {
+        cutBtn_->setStyleSheet("");
+        cutBtn_->setText("切割线段");
+    }
+}
+
+void ControlPanel::setDrawModeActive(bool active) {
+    drawModeBtn_->setChecked(active);
+    if (active) {
+        drawModeBtn_->setStyleSheet("background-color: #ccccff; font-weight: bold;");
+        drawModeBtn_->setText("手绘模式 (开)");
+    } else {
+        drawModeBtn_->setStyleSheet("");
+        drawModeBtn_->setText("手绘模式");
+    }
 }
 
 void ControlPanel::keyPressEvent(QKeyEvent* event) {

@@ -58,12 +58,16 @@ private slots:
     void onCyclePressure();
 
     // 编辑控制
-    void onEditModeChanged(int mode);
     void onDeleteSelected();
     void onClearAll();
     void onUndo();
     void onRedo();
     void onResetZoom();
+
+    // 新增：切割/合并/手绘模式槽函数
+    void onCutModeToggled(bool active);
+    void onSmartMergeClicked();
+    void onDrawModeToggled(bool active);
 
     // 鼠标绘制
     void onStartDrawing();
