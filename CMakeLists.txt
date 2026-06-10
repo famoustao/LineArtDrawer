@@ -4,6 +4,17 @@ project(SketchMaster VERSION 1.0.0 LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# 生成编译日期头文件
+string(TIMESTAMP BUILD_DATE "%Y年%m月%d日")
+string(TIMESTAMP BUILD_YEAR "%Y")
+string(TIMESTAMP BUILD_MONTH "%m")
+string(TIMESTAMP BUILD_DAY "%d")
+configure_file(
+    ${CMAKE_SOURCE_DIR}/src/build_info.h.in
+    ${CMAKE_BINARY_DIR}/generated/build_info.h
+    @ONLY
+)
+
 # 查找依赖包
 find_package(OpenCV REQUIRED)
 find_package(Qt6 REQUIRED COMPONENTS Core Widgets Gui)
@@ -47,8 +58,13 @@ set(HEADERS
     src/input/HotkeyManager.h
 )
 
+# Windows 资源文件（图标 + 版本信息）
+if(WIN32)
+    set(WIN_RESOURCES resources/SketchMaster.rc)
+endif()
+
 # 创建可执行文件
-add_executable(${PROJECT_NAME} WIN32 ${SOURCES} ${HEADERS})
+add_executable(${PROJECT_NAME} WIN32 ${SOURCES} ${HEADERS} ${WIN_RESOURCES})
 
 # 跨平台链接库
 if(WIN32)
