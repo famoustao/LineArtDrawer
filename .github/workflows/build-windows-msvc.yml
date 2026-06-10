@@ -10,7 +10,7 @@ on:
 jobs:
   build-windows-msvc:
     runs-on: windows-2022
-    
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
@@ -31,23 +31,20 @@ jobs:
         set-env: true
         install-deps: true
 
-    - name: Download OpenCV prebuilt
+    - name: Install OpenCV via vcpkg
       run: |
-        $url = "https://github.com/opencv/opencv/releases/download/4.9.0/opencv-4.9.0-windows.exe"
-        $output = "opencv-installer.exe"
-        Write-Host "Downloading OpenCV..."
-        Invoke-WebRequest -Uri $url -OutFile $output -UseBasicParsing
-        Write-Host "Extracting OpenCV..."
-        Start-Process -FilePath $output -ArgumentList "-y","-gm2","C:\opencv" -Wait
-        Write-Host "OpenCV installed to C:\opencv"
-        echo "OPENCV_DIR=C:\opencv\build" >> $env:GITHUB_ENV
+        git clone https://github.com/microsoft/vcpkg.git C:\vcpkg
+        C:\vcpkg\bootstrap-vcpkg.bat -disableMetrics
+        C:\vcpkg\vcpkg.exe install opencv4[core,imgproc,imgcodecs] --triplet x64-windows
+        echo "VCPKG_ROOT=C:\vcpkg" >> $env:GITHUB_ENV
 
     - name: Configure CMake
       run: |
         cmake -B build -S . `
           -G "Visual Studio 17 2022" -A x64 `
           -DCMAKE_BUILD_TYPE=Release `
-          -DCMAKE_PREFIX_PATH="${env:Qt6_DIR};C:\opencv\build"
+          -DCMAKE_PREFIX_PATH="${env:Qt6_DIR}" `
+          -DCMAKE_TOOLCHAIN_FILE="C:\vcpkg\scripts\buildsystems\vcpkg.cmake"
 
     - name: Build
       run: cmake --build build --config Release --parallel 4
@@ -59,12 +56,11 @@ jobs:
 
     - name: Copy OpenCV DLLs
       run: |
-        $opencvBin = "C:\opencv\build\x64\vc16\bin"
-        Copy-Item "$opencvBin\opencv_core490.dll" build\Release\ -ErrorAction SilentlyContinue
-        Copy-Item "$opencvBin\opencv_imgproc490.dll" build\Release\ -ErrorAction SilentlyContinue
-        Copy-Item "$opencvBin\opencv_imgcodecs490.dll" build\Release\ -ErrorAction SilentlyContinue
-        Copy-Item "$opencvBin\opencv_highgui490.dll" build\Release\ -ErrorAction SilentlyContinue
-        Copy-Item "$opencvBin\opencv_imgcodecs490.dll" build\Release\ -ErrorAction SilentlyContinue
+        $opencvBin = "C:\vcpkg\installed\x64-windows\bin"
+        Copy-Item "$opencvBin\opencv_core*.dll" build\Release\ -ErrorAction SilentlyContinue
+        Copy-Item "$opencvBin\opencv_imgproc*.dll" build\Release\ -ErrorAction SilentlyContinue
+        Copy-Item "$opencvBin\opencv_imgcodecs*.dll" build\Release\ -ErrorAction SilentlyContinue
+        Copy-Item "$opencvBin\opencv_highgui*.dll" build\Release\ -ErrorAction SilentlyContinue
 
     - name: Copy resources
       run: |

@@ -9,63 +9,63 @@ on:
 
 jobs:
   build-windows:
-    runs-on: windows-latest
-    
+    runs-on: windows-2022
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-
-    - name: Install Qt6
-      uses: jurplel/install-qt-action@v3
-      with:
-        version: '6.6.0'
-        host: 'windows'
-        target: 'desktop'
-        arch: 'win64_mingw'
-        modules: 'qtbase'
-        tools: 'tools_mingw90'
-        set-env: true
-        install-deps: true
-
-    - name: Install OpenCV
-      run: |
-        choco install opencv
 
     - name: Setup MSVC
       uses: ilammy/msvc-dev-cmd@v1
       with:
         arch: x64
 
+    - name: Install Qt6
+      uses: jurplel/install-qt-action@v4
+      with:
+        version: '6.6.3'
+        host: 'windows'
+        target: 'desktop'
+        arch: 'win64_msvc2019_64'
+        modules: 'qtbase'
+        set-env: true
+        install-deps: true
+
+    - name: Install OpenCV via vcpkg
+      run: |
+        git clone https://github.com/microsoft/vcpkg.git C:\vcpkg
+        C:\vcpkg\bootstrap-vcpkg.bat -disableMetrics
+        C:\vcpkg\vcpkg.exe install opencv4[core,imgproc,imgcodecs] --triplet x64-windows
+        echo "VCPKG_ROOT=C:\vcpkg" >> $env:GITHUB_ENV
+
     - name: Configure CMake
       run: |
         cmake -B build -S . `
-          -G "MinGW Makefiles" `
+          -G "Visual Studio 17 2022" -A x64 `
           -DCMAKE_BUILD_TYPE=Release `
-          -DCMAKE_PREFIX_PATH="${env:Qt6_DIR};C:\tools\opencv\build" `
-          -DCMAKE_C_COMPILER="C:\ProgramData\chocolatey\lib\mingw\tools\install\mingw64\bin\gcc.exe" `
-          -DCMAKE_CXX_COMPILER="C:\ProgramData\chocolatey\lib\mingw\tools\install\mingw64\bin\g++.exe"
+          -DCMAKE_PREFIX_PATH="${env:Qt6_DIR}" `
+          -DCMAKE_TOOLCHAIN_FILE="C:\vcpkg\scripts\buildsystems\vcpkg.cmake"
 
     - name: Build
-      run: cmake --build build --config Release -j4
+      run: cmake --build build --config Release --parallel 4
 
     - name: Deploy Qt dependencies
       run: |
         $qtBinPath = Split-Path -Parent (Get-Command qmake.exe).Source
-        windeployqt.exe --release build/SketchMaster.exe
+        windeployqt.exe --release build\Release\SketchMaster.exe
 
     - name: Copy OpenCV DLLs
       run: |
-        $opencvPath = "C:\tools\opencv\build\x64\vc16\bin"
-        if (Test-Path $opencvPath) {
-          Copy-Item "$opencvPath\opencv_core*.dll" build\ -ErrorAction SilentlyContinue
-          Copy-Item "$opencvPath\opencv_imgproc*.dll" build\ -ErrorAction SilentlyContinue
-          Copy-Item "$opencvPath\opencv_imgcodecs*.dll" build\ -ErrorAction SilentlyContinue
-        }
+        $opencvBin = "C:\vcpkg\installed\x64-windows\bin"
+        Copy-Item "$opencvBin\opencv_core*.dll" build\Release\ -ErrorAction SilentlyContinue
+        Copy-Item "$opencvBin\opencv_imgproc*.dll" build\Release\ -ErrorAction SilentlyContinue
+        Copy-Item "$opencvBin\opencv_imgcodecs*.dll" build\Release\ -ErrorAction SilentlyContinue
+        Copy-Item "$opencvBin\opencv_highgui*.dll" build\Release\ -ErrorAction SilentlyContinue
 
     - name: Copy resources
       run: |
         if (Test-Path "resources") {
-          Copy-Item -Recurse -Force "resources" "build\resources"
+          Copy-Item -Recurse -Force "resources" "build\Release\resources"
         }
 
     - name: Upload artifact
@@ -73,7 +73,7 @@ jobs:
       with:
         name: SketchMaster-Windows
         path: |
-          build/SketchMaster.exe
-          build/*.dll
-          build/resources/
+          build/Release/SketchMaster.exe
+          build/Release/*.dll
+          build/Release/resources/
         retention-days: 30
