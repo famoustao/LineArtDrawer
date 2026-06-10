@@ -97,15 +97,15 @@ signals:
     void cutModeChanged(bool active);
     void drawModeChanged(bool active);
 
+    // 缩放滑块同步
+    void setZoomFromSlider(int value);
+
 protected:
     void paintEvent(QPaintEvent* event) override;
     void mousePressEvent(QMouseEvent* event) override;
     void mouseMoveEvent(QMouseEvent* event) override;
     void mouseReleaseEvent(QMouseEvent* event) override;
     void wheelEvent(QWheelEvent* event) override;
-
-    // 缩放滑块同步
-    void setZoomFromSlider(int value);
 
 private:
     QImage backgroundImage_;
