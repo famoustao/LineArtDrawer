@@ -16,7 +16,7 @@ configure_file(
 )
 
 # 查找依赖包
-find_package(OpenCV REQUIRED)
+find_package(OpenCV REQUIRED COMPONENTS core imgproc imgcodecs line_descriptor xfeatures2d)
 find_package(Qt6 REQUIRED COMPONENTS Core Widgets Gui)
 
 # 启用Qt自动处理
