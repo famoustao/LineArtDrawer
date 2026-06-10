@@ -104,7 +104,8 @@ bool MouseController::smoothMoveTo(int x, int y, int durationMs) {
     }
     
     // 使用三次贝塞尔曲线进行平滑移动
-    int steps = std::max(10, durationMs / 10);
+    int steps = durationMs / 10;
+    if (steps < 10) steps = 10;
     double stepTime = durationMs / static_cast<double>(steps);
     
     // 控制点（创建轻微的曲线效果，模拟人类手部运动）
