@@ -104,6 +104,12 @@ protected:
     void mouseReleaseEvent(QMouseEvent* event) override;
     void wheelEvent(QWheelEvent* event) override;
 
+    // 缩放滑块同步
+    void setZoomFromSlider(int value);
+
+public slots:
+    void setZoom(double zoom);
+
 private:
     QImage backgroundImage_;
     std::vector<Polyline> polylines_;

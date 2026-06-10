@@ -126,6 +126,10 @@ void MainWindow::connectSignals() {
             this, &MainWindow::onRedo);
     connect(controlPanel_, &ControlPanel::resetZoomClicked,
             this, &MainWindow::onResetZoom);
+    connect(controlPanel_, &ControlPanel::zoomSliderChanged,
+            this, [this](int value) {
+        canvas_->setZoomFromSlider(value);
+    });
     connect(controlPanel_, &ControlPanel::startDrawingClicked,
             this, &MainWindow::onStartDrawing);
     connect(controlPanel_, &ControlPanel::stopDrawingClicked,

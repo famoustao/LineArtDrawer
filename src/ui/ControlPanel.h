@@ -111,6 +111,7 @@ signals:
     void startDrawingClicked();
     void stopDrawingClicked();
     void resetZoomClicked();
+    void zoomSliderChanged(int value);
     void speedUpClicked();
     void speedDownClicked();
     void togglePrecisionClicked();
@@ -165,6 +166,8 @@ private:
     QPushButton* startDrawBtn_;
     QPushButton* stopDrawBtn_;
     QPushButton* resetZoomBtn_;
+    QSlider* zoomSlider_;
+    QLabel* zoomPercentLabel_;
     QPushButton* speedUpBtn_;
     QPushButton* speedDownBtn_;
     QPushButton* togglePrecisionBtn_;

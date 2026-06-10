@@ -2,6 +2,9 @@
 #include <QPainter>
 #include <QMouseEvent>
 #include <QMenu>
+#ifndef _USE_MATH_DEFINES
+#define _USE_MATH_DEFINES
+#endif
 #include <cmath>
 #include <algorithm>
 #include <opencv2/imgproc.hpp>
@@ -298,6 +301,7 @@ void SketchCanvas::smartMergeAll() {
     saveState();
 
     double mergeThreshold = 10.0 / zoom_;
+    double angleThreshold = 30.0; // 方向差异阈值（度）
     bool merged = true;
 
     while (merged) {
@@ -318,17 +322,38 @@ void SketchCanvas::smartMergeAll() {
             }
         }
 
-        // 遍历所有线段对
+        // 遍历所有线段对，检查方向一致性
         for (size_t i = 0; i < polylines_.size() && !merged; ++i) {
             for (size_t j = i + 1; j < polylines_.size() && !merged; ++j) {
-                const auto& polyA = polylines_[i];
-                const auto& polyB = polylines_[j];
-                if (polyA.points.empty() || polyB.points.empty()) continue;
+                auto& polyA = polylines_[i];
+                auto& polyB = polylines_[j];
+                if (polyA.points.size() < 2 || polyB.points.size() < 2) continue;
 
                 Point2D aStart = polyA.points.front();
                 Point2D aEnd = polyA.points.back();
                 Point2D bStart = polyB.points.front();
                 Point2D bEnd = polyB.points.back();
+
+                // 计算两条线段的整体方向角度
+                auto calcAngle = [](const Point2D& from, const Point2D& to) -> double {
+                    return std::atan2(to.y - from.y, to.x - from.x) * 180.0 / M_PI;
+                };
+                double angleA = calcAngle(aStart, aEnd);
+                double angleB = calcAngle(bStart, bEnd);
+
+                // 计算方向差异（考虑正反方向都算一致）
+                auto angleDiff = [](double a, double b) -> double {
+                    double d = std::abs(a - b);
+                    if (d > 180.0) d = 360.0 - d;
+                    return d;
+                };
+                // 正向差异和反向差异（反向 = 180度翻转）
+                double forwardDiff = angleDiff(angleA, angleB);
+                double reverseDiff = angleDiff(angleA, angleB + 180.0);
+                double minAngleDiff = std::min(forwardDiff, reverseDiff);
+
+                // 方向不一致则跳过
+                if (minAngleDiff > angleThreshold) continue;
 
                 // 检查四种连接方式
                 struct ConnInfo {
@@ -338,13 +363,13 @@ void SketchCanvas::smartMergeAll() {
 
                 ConnInfo connections[] = {
                     {std::sqrt((aEnd.x - bStart.x) * (aEnd.x - bStart.x) +
-                               (aEnd.y - bStart.y) * (aEnd.y - bStart.y)), false, false},  // A尾-B头
+                               (aEnd.y - bStart.y) * (aEnd.y - bStart.y)), false, false},
                     {std::sqrt((aEnd.x - bEnd.x) * (aEnd.x - bEnd.x) +
-                               (aEnd.y - bEnd.y) * (aEnd.y - bEnd.y)), false, true},         // A尾-B尾
+                               (aEnd.y - bEnd.y) * (aEnd.y - bEnd.y)), false, true},
                     {std::sqrt((aStart.x - bStart.x) * (aStart.x - bStart.x) +
-                               (aStart.y - bStart.y) * (aStart.y - bStart.y)), true, false},  // A头-B头
+                               (aStart.y - bStart.y) * (aStart.y - bStart.y)), true, false},
                     {std::sqrt((aStart.x - bEnd.x) * (aStart.x - bEnd.x) +
-                               (aStart.y - bEnd.y) * (aStart.y - bEnd.y)), true, true}         // A头-B尾
+                               (aStart.y - bEnd.y) * (aStart.y - bEnd.y)), true, true}
                 };
 
                 int bestConn = -1;
@@ -374,7 +399,6 @@ void SketchCanvas::smartMergeAll() {
                     mergedPoly.points = ptsA;
                     mergedPoly.points.insert(mergedPoly.points.end(), ptsB.begin(), ptsB.end());
 
-                    // 替换
                     polylines_.erase(polylines_.begin() + j);
                     polylines_.erase(polylines_.begin() + i);
                     polylines_.insert(polylines_.begin() + i, mergedPoly);
@@ -948,8 +972,17 @@ void SketchCanvas::mouseReleaseEvent(QMouseEvent* event) {
 }
 
 void SketchCanvas::wheelEvent(QWheelEvent* event) {
-    double delta = event->angleDelta().y() / 120.0;
-    double newZoom = zoom_ * std::pow(1.1, delta);
+    // 滚轮不再用于缩放，改为平移画布
+    int deltaX = event->angleDelta().x();
+    int deltaY = event->angleDelta().y();
+    offset_.setX(offset_.x() + deltaX);
+    offset_.setY(offset_.y() + deltaY);
+    update();
+}
+
+void SketchCanvas::setZoomFromSlider(int value) {
+    // 滑块范围 10-500，对应缩放 0.1x - 5.0x
+    double newZoom = value / 100.0;
     setZoom(newZoom);
 }
 

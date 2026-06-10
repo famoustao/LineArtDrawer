@@ -4,6 +4,7 @@
 #include <QGridLayout>
 #include <QGroupBox>
 #include <QFrame>
+#include <QSlider>
 #include <QKeyEvent>
 #include <QFocusEvent>
 
@@ -166,6 +167,18 @@ void ControlPanel::setupUI() {
     opacityLabel_ = new QLabel("50%", this);
     opacityLayout->addWidget(opacityLabel_);
     displayLayout->addLayout(opacityLayout);
+
+    // 缩放滑块
+    QHBoxLayout* zoomLayout = new QHBoxLayout();
+    zoomLayout->addWidget(new QLabel("缩放:", this));
+    zoomSlider_ = new QSlider(Qt::Horizontal, this);
+    zoomSlider_->setRange(10, 500);
+    zoomSlider_->setValue(100);
+    zoomSlider_->setToolTip("拖动滑块放大/缩小图片");
+    zoomLayout->addWidget(zoomSlider_);
+    zoomPercentLabel_ = new QLabel("100%", this);
+    zoomLayout->addWidget(zoomPercentLabel_);
+    displayLayout->addLayout(zoomLayout);
 
     resetZoomBtn_ = new QPushButton("重置缩放", this);
     displayLayout->addWidget(resetZoomBtn_);
@@ -375,6 +388,10 @@ void ControlPanel::connectSignals() {
     connect(startDrawBtn_, &QPushButton::clicked, this, &ControlPanel::startDrawingClicked);
     connect(stopDrawBtn_, &QPushButton::clicked, this, &ControlPanel::stopDrawingClicked);
     connect(resetZoomBtn_, &QPushButton::clicked, this, &ControlPanel::resetZoomClicked);
+    connect(zoomSlider_, &QSlider::valueChanged, this, [this](int value) {
+        zoomPercentLabel_->setText(QString("%1%").arg(value));
+        emit zoomSliderChanged(value);
+    });
     connect(speedUpBtn_, &QPushButton::clicked, this, &ControlPanel::speedUpClicked);
     connect(speedDownBtn_, &QPushButton::clicked, this, &ControlPanel::speedDownClicked);
     connect(togglePrecisionBtn_, &QPushButton::clicked, this, &ControlPanel::togglePrecisionClicked);
