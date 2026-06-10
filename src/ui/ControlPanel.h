@@ -76,10 +76,18 @@ public:
     // 更新手绘模式按钮状态
     void setDrawModeActive(bool active);
 
+    // 获取当前选择的算法索引
+    int getSelectedAlgorithm() const;
+
+    // 内置算法数量（用于区分内置和外部算法）
+    static const int BUILTIN_ALGORITHM_COUNT = 8;
+
 signals:
     // 线稿生成相关
     void generateLineArtClicked();
     void generateCannyClicked();
+    void generateWithAlgorithmClicked();
+    void algorithmChanged(int index);
     void importImageClicked();
     void exportSVGClicked();
     void importSVGClicked();
@@ -156,6 +164,7 @@ private:
     QPushButton* importImageBtn_;
     QPushButton* generateBtn_;
     QPushButton* generateCannyBtn_;
+    QPushButton* generateWithAlgoBtn_;
     QPushButton* exportSVGBtn_;
     QPushButton* importSVGBtn_;
     QPushButton* traceToSVGBtn_;
@@ -207,6 +216,10 @@ private:
 
     // 等待按键模式
     QString waitingForKeyWhich_;
+
+    // 算法选择
+    QComboBox* algorithmCombo_;
+    QLabel* algorithmHintLabel_;
 };
 
 } // namespace SketchMaster

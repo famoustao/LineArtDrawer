@@ -9,6 +9,8 @@
 #include <QLabel>
 #include <QSystemTrayIcon>
 #include <QShortcut>
+#include <QProcess>
+#include <QTemporaryDir>
 #include "SketchCanvas.h"
 #include "ControlPanel.h"
 #include "../core/LineArtGenerator.h"
@@ -39,6 +41,9 @@ private slots:
     // 线稿生成
     void onGenerateLineArt();
     void onGenerateCanny();
+    void onGenerateWithAlgorithm();
+    void onExternalAlgorithmFinished(int exitCode, QProcess::ExitStatus exitStatus);
+    void onExternalAlgorithmError(QProcess::ProcessError error);
 
     // 参数变化
     void onContrastChanged(double value);
@@ -143,6 +148,11 @@ private:
     unsigned int startDrawModifiers_;
     int stopDrawVkCode_;
     unsigned int stopDrawModifiers_;
+
+    // 外部算法进程
+    QProcess* externalProcess_;
+    QString externalOutputPath_;
+    QTemporaryDir* tempDir_;
 };
 
 } // namespace SketchMaster

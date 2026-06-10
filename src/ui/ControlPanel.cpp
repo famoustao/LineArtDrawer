@@ -113,11 +113,43 @@ void ControlPanel::setupUI() {
     QGroupBox* genGroup = new QGroupBox("生成线稿", this);
     QVBoxLayout* genLayout = new QVBoxLayout(genGroup);
 
+    // 算法选择下拉框
+    QHBoxLayout* algoLayout = new QHBoxLayout();
+    algoLayout->addWidget(new QLabel("算法:", this));
+    algorithmCombo_ = new QComboBox(this);
+    algorithmCombo_->addItem("Canny 边缘检测 (快速/通用)", 0);
+    algorithmCombo_->addItem("DoG 高斯差分 (快速/细线条)", 1);
+    algorithmCombo_->addItem("Sobel 算子 (快速/简单)", 2);
+    algorithmCombo_->addItem("Scharr 滤波器 (快速/精确)", 3);
+    algorithmCombo_->addItem("Laplacian 拉普拉斯 (快速/二阶微分)", 4);
+    algorithmCombo_->addItem("LSD 直线检测 (建筑/机械)", 5);
+    algorithmCombo_->addItem("形态学边缘 (快速/粗线条)", 6);
+    algorithmCombo_->insertSeparator(algorithmCombo_->count());
+    algorithmCombo_->addItem("HED 深度边缘 (人像/复杂)", 7);
+    algorithmCombo_->addItem("ControlNet LineArt (插画/漫画)", 8);
+    algorithmCombo_->addItem("ControlNet MLSD (建筑/直线)", 9);
+    algorithmCombo_->addItem("ArtLine (人像/肖像)", 10);
+    algorithmCombo_->addItem("CycleGAN (风格转换)", 11);
+    algorithmCombo_->addItem("SAGAN (自注意力生成)", 12);
+    algorithmCombo_->addItem("APDrawingGAN (肖像线稿)", 13);
+    algorithmCombo_->addItem("DiT+LoRA (专业/考古)", 14);
+    algoLayout->addWidget(algorithmCombo_);
+    genLayout->addLayout(algoLayout);
+
+    // 算法提示标签
+    algorithmHintLabel_ = new QLabel("适用场景: 快速/通用", this);
+    algorithmHintLabel_->setStyleSheet("color: #888; font-size: 11px;");
+    algorithmHintLabel_->setWordWrap(true);
+    genLayout->addWidget(algorithmHintLabel_);
+
     generateBtn_ = new QPushButton("自适应阈值生成", this);
     generateCannyBtn_ = new QPushButton("Canny边缘检测生成", this);
+    generateWithAlgoBtn_ = new QPushButton("使用选中算法生成", this);
+    generateWithAlgoBtn_->setStyleSheet("background-color: #4CAF50; color: white; font-weight: bold; padding: 6px;");
 
     genLayout->addWidget(generateBtn_);
     genLayout->addWidget(generateCannyBtn_);
+    genLayout->addWidget(generateWithAlgoBtn_);
 
     tab2Layout->addWidget(genGroup);
 
@@ -381,6 +413,33 @@ void ControlPanel::connectSignals() {
     connect(traceToSVGBtn_, &QPushButton::clicked, this, &ControlPanel::traceToSVGClicked);
     connect(generateBtn_, &QPushButton::clicked, this, &ControlPanel::generateLineArtClicked);
     connect(generateCannyBtn_, &QPushButton::clicked, this, &ControlPanel::generateCannyClicked);
+    connect(generateWithAlgoBtn_, &QPushButton::clicked, this, &ControlPanel::generateWithAlgorithmClicked);
+
+    // 算法选择变化信号
+    connect(algorithmCombo_, QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this, [this](int index) {
+        // 更新提示标签
+        QString hint;
+        switch (index) {
+            case 0:  hint = "适用场景: 快速/通用 - 经典Canny边缘检测，适合大多数图片"; break;
+            case 1:  hint = "适用场景: 快速/细线条 - 高斯差分，对细线条效果好"; break;
+            case 2:  hint = "适用场景: 快速/简单 - 经典梯度边缘检测"; break;
+            case 3:  hint = "适用场景: 快速/精确 - 比Sobel更精确的梯度检测"; break;
+            case 4:  hint = "适用场景: 快速/二阶微分 - 二阶微分边缘检测，对噪声敏感"; break;
+            case 5:  hint = "适用场景: 建筑/机械 - 直线段检测，适合建筑结构图"; break;
+            case 6:  hint = "适用场景: 快速/粗线条 - 膨胀减腐蚀提取边缘"; break;
+            case 8:  hint = "适用场景: 插画/漫画 - 需要Python+PyTorch+diffusers"; break;
+            case 9:  hint = "适用场景: 建筑/直线 - 需要Python+PyTorch+diffusers"; break;
+            case 10: hint = "适用场景: 人像/肖像 - 需要Python+PyTorch"; break;
+            case 11: hint = "适用场景: 风格转换 - 需要Python+PyTorch"; break;
+            case 12: hint = "适用场景: 自注意力生成 - 需要Python+PyTorch"; break;
+            case 13: hint = "适用场景: 肖像线稿 - 需要Python+PyTorch"; break;
+            case 14: hint = "适用场景: 专业/考古 - 需要Python+PyTorch"; break;
+            default: hint = "适用场景: 人像/复杂 - 需要Python+PyTorch"; break;
+        }
+        algorithmHintLabel_->setText(hint);
+        emit algorithmChanged(index);
+    });
     connect(deleteBtn_, &QPushButton::clicked, this, &ControlPanel::deleteSelectedClicked);
     connect(clearBtn_, &QPushButton::clicked, this, &ControlPanel::clearAllClicked);
     connect(undoBtn_, &QPushButton::clicked, this, &ControlPanel::undoClicked);
@@ -677,6 +736,10 @@ int ControlPanel::getTraceMinArea() const {
 
 bool ControlPanel::getTraceSmoothPaths() const {
     return traceSmoothPathsCheck_->isChecked();
+}
+
+int ControlPanel::getSelectedAlgorithm() const {
+    return algorithmCombo_->currentIndex();
 }
 
 } // namespace SketchMaster

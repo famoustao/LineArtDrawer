@@ -10,6 +10,8 @@
 #include <QShortcut>
 #include <QKeySequence>
 #include <QTimer>
+#include <QJsonDocument>
+#include <QJsonObject>
 
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
@@ -31,7 +33,9 @@ MainWindow::MainWindow(QWidget* parent)
     , startDrawVkCode_(VK_SPACE)
     , startDrawModifiers_(0)
     , stopDrawVkCode_(VK_ESCAPE)
-    , stopDrawModifiers_(0) {
+    , stopDrawModifiers_(0)
+    , externalProcess_(nullptr)
+    , tempDir_(nullptr) {
     setupUI();
     connectSignals();
     setupHotkeys();
@@ -44,6 +48,15 @@ MainWindow::MainWindow(QWidget* parent)
 
 MainWindow::~MainWindow() {
     mousePainter_.stopDrawing();
+    if (externalProcess_) {
+        externalProcess_->kill();
+        externalProcess_->deleteLater();
+        externalProcess_ = nullptr;
+    }
+    if (tempDir_) {
+        delete tempDir_;
+        tempDir_ = nullptr;
+    }
     if (hotkeyManager_) {
         hotkeyManager_->stop();
         hotkeyManager_->wait();
@@ -116,6 +129,8 @@ void MainWindow::connectSignals() {
             this, &MainWindow::onGenerateLineArt);
     connect(controlPanel_, &ControlPanel::generateCannyClicked,
             this, &MainWindow::onGenerateCanny);
+    connect(controlPanel_, &ControlPanel::generateWithAlgorithmClicked,
+            this, &MainWindow::onGenerateWithAlgorithm);
     connect(controlPanel_, &ControlPanel::deleteSelectedClicked,
             this, &MainWindow::onDeleteSelected);
     connect(controlPanel_, &ControlPanel::clearAllClicked,
@@ -635,6 +650,279 @@ void MainWindow::onGenerateCanny() {
     hasLineArt_ = true;
 
     updateStatusBar(QString("Canny线稿生成完成: %1 条路径").arg(polylines.size()));
+}
+
+void MainWindow::onGenerateWithAlgorithm() {
+    if (!hasImage_) {
+        QMessageBox::warning(this, "警告", "请先导入图片！");
+        return;
+    }
+
+    int algoIndex = controlPanel_->getSelectedAlgorithm();
+
+    // 算法名称列表（与ControlPanel中的下拉框索引对应）
+    // 索引0-6: 内置算法（Canny, DoG, Sobel, Scharr, Laplacian, LSD, 形态学）
+    // 索引7之后: 外部算法（跳过分隔线，实际映射到外部算法）
+    // 注意：下拉框中有一个分隔符，所以实际索引需要调整
+
+    // 内置算法索引映射（跳过分隔符）
+    // 下拉框索引: 0=Canny, 1=DoG, 2=Sobel, 3=Scharr, 4=Laplacian, 5=LSD, 6=形态学
+    // 分隔符: 索引7
+    // 外部算法: 索引8=HED, 9=ControlNet LineArt, 10=ControlNet MLSD, 11=ArtLine, 12=CycleGAN, 13=SAGAN, 14=APDrawingGAN, 15=DiT+LoRA
+
+    double mergeDistance = controlPanel_->getMergeDistance();
+    double simplifyEpsilon = controlPanel_->getSimplifyEpsilon();
+
+    // 内置算法 (索引 0-6)
+    if (algoIndex >= 0 && algoIndex <= 6) {
+        updateStatusBar("正在使用内置算法生成线稿...");
+        QApplication::processEvents();
+
+        std::vector<Polyline> polylines;
+
+        switch (algoIndex) {
+            case 0: // Canny
+                updateStatusBar("正在使用 Canny 边缘检测...");
+                QApplication::processEvents();
+                polylines = lineArtGenerator_.generateLineArtCanny(50, 150, mergeDistance, simplifyEpsilon);
+                break;
+            case 1: // DoG
+                updateStatusBar("正在使用 DoG 高斯差分...");
+                QApplication::processEvents();
+                polylines = lineArtGenerator_.generateLineArtDoG(1.0, 3.0, mergeDistance, simplifyEpsilon);
+                break;
+            case 2: // Sobel
+                updateStatusBar("正在使用 Sobel 算子...");
+                QApplication::processEvents();
+                polylines = lineArtGenerator_.generateLineArtSobel(mergeDistance, simplifyEpsilon);
+                break;
+            case 3: // Scharr
+                updateStatusBar("正在使用 Scharr 滤波器...");
+                QApplication::processEvents();
+                polylines = lineArtGenerator_.generateLineArtScharr(mergeDistance, simplifyEpsilon);
+                break;
+            case 4: // Laplacian
+                updateStatusBar("正在使用 Laplacian 拉普拉斯...");
+                QApplication::processEvents();
+                polylines = lineArtGenerator_.generateLineArtLaplacian(3, mergeDistance, simplifyEpsilon);
+                break;
+            case 5: // LSD
+                updateStatusBar("正在使用 LSD 直线检测...");
+                QApplication::processEvents();
+                polylines = lineArtGenerator_.generateLineArtLSD(mergeDistance, simplifyEpsilon);
+                break;
+            case 6: // Morphological
+                updateStatusBar("正在使用形态学边缘检测...");
+                QApplication::processEvents();
+                polylines = lineArtGenerator_.generateLineArtMorphological(3, mergeDistance, simplifyEpsilon);
+                break;
+            default:
+                break;
+        }
+
+        if (polylines.empty()) {
+            QMessageBox::warning(this, "警告", "未能生成线稿，请尝试调整参数！");
+            return;
+        }
+
+        canvas_->setPolylines(polylines);
+        hasLineArt_ = true;
+
+        QStringList algoNames = {"Canny", "DoG", "Sobel", "Scharr", "Laplacian", "LSD", "形态学"};
+        updateStatusBar(QString("%1 线稿生成完成: %2 条路径")
+            .arg(algoNames[algoIndex])
+            .arg(polylines.size()));
+        return;
+    }
+
+    // 外部算法 (索引 8-15，跳过分隔符索引7)
+    if (algoIndex >= 8) {
+        // 外部算法名称映射
+        QStringList algoNames = {
+            "hed",                  // 索引8
+            "controlnet_lineart",  // 索引9
+            "controlnet_mlsd",      // 索引10
+            "artline",              // 索引11
+            "cyclegan",             // 索引12
+            "sagan",                // 索引13
+            "apdrawinggan",         // 索引14
+            "dit_lora"              // 索引15
+        };
+
+        int externalIndex = algoIndex - 8;
+        if (externalIndex < 0 || externalIndex >= algoNames.size()) {
+            QMessageBox::warning(this, "警告", "未知的算法选择！");
+            return;
+        }
+
+        QString algoName = algoNames[externalIndex];
+
+        // 查找Python脚本路径
+        QStringList scriptPaths;
+        scriptPaths << QDir::currentPath() + "/scripts/lineart_external.py"
+                     << QCoreApplication::applicationDirPath() + "/scripts/lineart_external.py"
+                     << QDir::currentPath() + "/../scripts/lineart_external.py";
+
+        QString scriptPath;
+        for (const auto& path : scriptPaths) {
+            if (QFile::exists(path)) {
+                scriptPath = path;
+                break;
+            }
+        }
+
+        if (scriptPath.isEmpty()) {
+            QMessageBox::critical(this, "错误",
+                "未找到外部算法脚本 (scripts/lineart_external.py)。\n"
+                "请确保脚本文件位于程序目录下的 scripts/ 文件夹中。");
+            return;
+        }
+
+        // 创建临时目录用于存放中间文件
+        if (tempDir_) {
+            delete tempDir_;
+        }
+        tempDir_ = new QTemporaryDir();
+        if (!tempDir_->isValid()) {
+            QMessageBox::critical(this, "错误", "无法创建临时目录！");
+            return;
+        }
+
+        // 保存当前图片到临时文件
+        QString tempInputPath = tempDir_->path() + "/input.png";
+        externalOutputPath_ = tempDir_->path() + "/output.png";
+
+        cv::Mat originalImage = lineArtGenerator_.getOriginalImageCV();
+        if (originalImage.empty()) {
+            QMessageBox::critical(this, "错误", "无法获取原始图片数据！");
+            return;
+        }
+        cv::imwrite(tempInputPath.toLocal8Bit().toStdString(), originalImage);
+
+        // 启动Python进程
+        if (externalProcess_) {
+            externalProcess_->kill();
+            externalProcess_->deleteLater();
+        }
+
+        externalProcess_ = new QProcess(this);
+
+        connect(externalProcess_, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
+                this, &MainWindow::onExternalAlgorithmFinished);
+        connect(externalProcess_, &QProcess::errorOccurred,
+                this, &MainWindow::onExternalAlgorithmError);
+
+        // 查找Python可执行文件
+        QString pythonCmd = "python3";
+        QProcess whichPython;
+        whichPython.start("which", QStringList() << "python3");
+        whichPython.waitForFinished(3000);
+        if (whichPython.exitCode() != 0) {
+            pythonCmd = "python";
+        }
+
+        QStringList args;
+        args << scriptPath
+             << "--algorithm" << algoName
+             << "--input" << tempInputPath
+             << "--output" << externalOutputPath_;
+
+        updateStatusBar(QString("正在调用外部算法 %1，请稍候...").arg(algoName));
+        QApplication::processEvents();
+
+        externalProcess_->start(pythonCmd, args);
+    }
+}
+
+void MainWindow::onExternalAlgorithmFinished(int exitCode, QProcess::ExitStatus exitStatus) {
+    if (exitStatus != QProcess::NormalExit || exitCode != 0) {
+        QString errorMsg = QString::fromLocal8Bit(externalProcess_->readAllStandardError());
+        if (errorMsg.isEmpty()) {
+            errorMsg = QString::fromLocal8Bit(externalProcess_->readAllStandardOutput());
+        }
+        QMessageBox::critical(this, "外部算法执行失败",
+            QString("Python脚本执行失败 (退出码: %1)\n\n错误信息:\n%2\n\n"
+                   "提示:\n"
+                   "- 请确保已安装 Python 3.8+\n"
+                   "- 请确保已安装所需依赖: pip install torch torchvision diffusers opencv-python Pillow numpy\n"
+                   "- 部分算法需要 GPU 支持")
+                .arg(exitCode)
+                .arg(errorMsg.isEmpty() ? "无详细错误信息" : errorMsg));
+        updateStatusBar("外部算法执行失败");
+        return;
+    }
+
+    // 读取输出
+    QString output = QString::fromLocal8Bit(externalProcess_->readAllStandardOutput()).trimmed();
+
+    // 尝试解析JSON输出
+    QJsonDocument doc = QJsonDocument::fromJson(output.toUtf8());
+    if (doc.isObject()) {
+        QJsonObject obj = doc.object();
+        if (obj["status"].toString() == "error") {
+            QMessageBox::critical(this, "外部算法错误",
+                QString("算法执行出错:\n%1").arg(obj["message"].toString()));
+            updateStatusBar("外部算法执行出错");
+            return;
+        }
+    }
+
+    // 读取输出的边缘图像
+    cv::Mat edgeImg = cv::imread(externalOutputPath_.toLocal8Bit().toStdString(), cv::IMREAD_UNCHANGED);
+    if (edgeImg.empty()) {
+        QMessageBox::critical(this, "错误",
+            "未能读取外部算法输出的边缘图像。\n"
+            "请检查输出文件: " + externalOutputPath_);
+        updateStatusBar("外部算法输出读取失败");
+        return;
+    }
+
+    // 使用PathSimplifier提取路径
+    double mergeDistance = controlPanel_->getMergeDistance();
+    double simplifyEpsilon = controlPanel_->getSimplifyEpsilon();
+
+    auto polylines = lineArtGenerator_.generateLineArtFromEdgeImage(edgeImg, mergeDistance, simplifyEpsilon);
+
+    if (polylines.empty()) {
+        QMessageBox::warning(this, "警告", "外部算法生成的边缘图像中未检测到有效路径！");
+        return;
+    }
+
+    canvas_->setPolylines(polylines);
+    hasLineArt_ = true;
+
+    // 显示提示信息（如果有）
+    QString message;
+    if (doc.isObject()) {
+        message = doc.object()["message"].toString();
+    }
+
+    QString statusMsg = QString("外部算法线稿生成完成: %1 条路径").arg(polylines.size());
+    if (!message.isEmpty()) {
+        statusMsg += " (" + message + ")";
+    }
+    updateStatusBar(statusMsg);
+}
+
+void MainWindow::onExternalAlgorithmError(QProcess::ProcessError error) {
+    QString errorStr;
+    switch (error) {
+        case QProcess::FailedToStart:
+            errorStr = "无法启动Python进程。请确保已安装 Python 3.8+，并且 'python3' 或 'python' 命令可用。";
+            break;
+        case QProcess::Crashed:
+            errorStr = "Python进程崩溃。可能是依赖库版本不兼容。";
+            break;
+        case QProcess::Timedout:
+            errorStr = "Python进程执行超时。";
+            break;
+        default:
+            errorStr = QString("Python进程发生未知错误 (错误码: %1)。").arg(error);
+            break;
+    }
+
+    QMessageBox::critical(this, "外部算法错误", errorStr);
+    updateStatusBar("外部算法执行失败: " + errorStr);
 }
 
 // === 参数变化槽函数 ===
