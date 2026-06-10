@@ -7,12 +7,10 @@ on:
     branches: [ main, master ]
   workflow_dispatch:
 
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-
 jobs:
   build-windows-msvc:
     runs-on: windows-2022
+    timeout-minutes: 120
 
     steps:
     - name: Checkout code
@@ -23,19 +21,42 @@ jobs:
       with:
         arch: x64
 
+    - name: Cache Qt6
+      id: cache-qt
+      uses: actions/cache@v4
+      with:
+        path: C:\Qt
+        key: qt-6.6.3-msvc2019_64
+
     - name: Install Qt6 via aqtinstall
+      if: steps.cache-qt.outputs.cache-hit != 'true'
       run: |
+        python -m pip install --upgrade pip
         pip install aqtinstall
-        aqt install-qt windows desktop 6.6.3 win64_msvc2019_64 --outputdir C:\Qt
+        python -m aqt install-qt windows desktop 6.6.3 win64_msvc2019_64 --outputdir C:\Qt
+
+    - name: Setup Qt environment
+      run: |
         echo "QT6_DIR=C:\Qt\6.6.3\msvc2019_64" >> $env:GITHUB_ENV
         echo "C:\Qt\6.6.3\msvc2019_64\bin" >> $env:GITHUB_PATH
 
-    - name: Install OpenCV via vcpkg
+    - name: Cache vcpkg
+      id: cache-vcpkg
+      uses: actions/cache@v4
+      with:
+        path: |
+          C:\vcpkg\installed
+          C:\vcpkg\vcpkg.exe
+        key: vcpkg-opencv-x64-windows-v1
+
+    - name: Install vcpkg and OpenCV
+      if: steps.cache-vcpkg.outputs.cache-hit != 'true'
       run: |
-        git clone --depth 1 https://github.com/microsoft/vcpkg.git C:\vcpkg
-        C:\vcpkg\bootstrap-vcpkg.bat -disableMetrics
-        C:\vcpkg\vcpkg.exe install opencv4[core,imgproc,imgcodecs]:x64-windows --recurse
-        echo "VCPKG_ROOT=C:\vcpkg" >> $env:GITHUB_ENV
+        if (-not (Test-Path "C:\vcpkg\vcpkg.exe")) {
+          git clone --depth 1 https://github.com/microsoft/vcpkg.git C:\vcpkg
+          C:\vcpkg\bootstrap-vcpkg.bat -disableMetrics
+        }
+        C:\vcpkg\vcpkg.exe install opencv4:x64-windows --recurse
 
     - name: Configure CMake
       run: |
