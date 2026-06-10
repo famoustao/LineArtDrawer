@@ -1,5 +1,7 @@
 IDI_ICON1 ICON DISCARDABLE "icon.ico"
 
+1 RT_MANIFEST "SketchMaster.exe.manifest"
+
 #include <windows.h>
 
 VS_VERSION_INFO VERSIONINFO
