@@ -26,7 +26,40 @@ public:
                                                double threshold2 = 150,
                                                double mergeDistance = 5.0,
                                                double simplifyEpsilon = 2.0);
-    
+
+    // DoG (Difference of Gaussians) 高斯差分边缘检测
+    std::vector<Polyline> generateLineArtDoG(double sigma1 = 1.0,
+                                              double sigma2 = 3.0,
+                                              double mergeDistance = 5.0,
+                                              double simplifyEpsilon = 2.0);
+
+    // Sobel 算子边缘检测
+    std::vector<Polyline> generateLineArtSobel(double mergeDistance = 5.0,
+                                               double simplifyEpsilon = 2.0);
+
+    // Laplacian 拉普拉斯边缘检测
+    std::vector<Polyline> generateLineArtLaplacian(int kernelSize = 3,
+                                                   double mergeDistance = 5.0,
+                                                   double simplifyEpsilon = 2.0);
+
+    // LSD (Line Segment Detector) 直线段检测
+    std::vector<Polyline> generateLineArtLSD(double mergeDistance = 5.0,
+                                             double simplifyEpsilon = 2.0);
+
+    // Scharr 滤波器边缘检测
+    std::vector<Polyline> generateLineArtScharr(double mergeDistance = 5.0,
+                                                 double simplifyEpsilon = 2.0);
+
+    // Morphological 形态学边缘检测
+    std::vector<Polyline> generateLineArtMorphological(int kernelSize = 3,
+                                                       double mergeDistance = 5.0,
+                                                       double simplifyEpsilon = 2.0);
+
+    // 从外部边缘图像生成线稿（用于Python脚本输出的结果）
+    std::vector<Polyline> generateLineArtFromEdgeImage(const cv::Mat& edgeImage,
+                                                       double mergeDistance = 5.0,
+                                                       double simplifyEpsilon = 2.0);
+
     // 获取处理后的边缘图像
     cv::Mat getEdgeImage() const { return edgeImage_; }
     
