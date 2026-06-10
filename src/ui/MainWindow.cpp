@@ -6,6 +6,7 @@
 #include <QIcon>
 #include <QPixmap>
 #include <QDir>
+#include <QScrollArea>
 
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
@@ -25,7 +26,7 @@ MainWindow::MainWindow(QWidget* parent)
     setupTrayIcon();
     setupIcon();
     
-    setWindowTitle("SketchMaster - 图片转线稿与自动绘制工具");
+    setWindowTitle("图片转矢量图自动绘图工具，涛2026年6月编译");
     resize(1200, 800);
 }
 
@@ -53,12 +54,19 @@ void MainWindow::setupUI() {
     canvas_ = new SketchCanvas(this);
     splitter_->addWidget(canvas_);
     
-    // 创建控制面板
+    // 创建控制面板（放在滚动区域内）
+    QScrollArea* scrollArea = new QScrollArea(this);
+    scrollArea->setWidgetResizable(true);
+    scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    scrollArea->setMaximumWidth(340);
+    scrollArea->setMinimumWidth(280);
+    
     controlPanel_ = new ControlPanel(this);
-    splitter_->addWidget(controlPanel_);
+    scrollArea->setWidget(controlPanel_);
+    splitter_->addWidget(scrollArea);
     
     // 设置分割比例
-    splitter_->setSizes(QList<int>() << 900 << 300);
+    splitter_->setSizes(QList<int>() << 860 << 340);
     
     mainLayout->addWidget(splitter_);
     
@@ -247,7 +255,10 @@ void MainWindow::setupIcon() {
     
     for (const auto& path : iconPaths) {
         if (QFile::exists(path)) {
-            setWindowIcon(QIcon(path));
+            QIcon icon(path);
+            setWindowIcon(icon);
+            // 同时设置应用程序图标（影响任务栏）
+            QApplication::setWindowIcon(icon);
             break;
         }
     }
