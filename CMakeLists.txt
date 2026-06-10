@@ -58,13 +58,22 @@ set(HEADERS
     src/input/HotkeyManager.h
 )
 
-# Windows 资源文件（图标 + 版本信息）
+# Windows 资源文件（图标 + 版本信息 + manifest）
 if(WIN32)
     set(WIN_RESOURCES resources/SketchMaster.rc)
 endif()
 
 # 创建可执行文件
-add_executable(${PROJECT_NAME} WIN32 ${SOURCES} ${HEADERS} ${WIN_RESOURCES})
+if(WIN32)
+    add_executable(${PROJECT_NAME} WIN32 ${SOURCES} ${HEADERS} ${WIN_RESOURCES})
+    # 设置 Windows 子系统为 Windows GUI（不是 Console）
+    set_target_properties(${PROJECT_NAME} PROPERTIES
+        WIN32_EXECUTABLE TRUE
+        LINK_FLAGS "/MANIFEST:EMBED /MANIFESTINPUT:${CMAKE_SOURCE_DIR}/resources/SketchMaster.exe.manifest"
+    )
+else()
+    add_executable(${PROJECT_NAME} ${SOURCES} ${HEADERS})
+endif()
 
 # 跨平台链接库
 if(WIN32)
