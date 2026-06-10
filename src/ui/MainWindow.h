@@ -62,6 +62,7 @@ private slots:
     void onDeleteSelected();
     void onClearAll();
     void onUndo();
+    void onRedo();
     void onResetZoom();
 
     // 鼠标绘制
@@ -122,6 +123,7 @@ private:
     QLabel* countdownLabel_;
     QSystemTrayIcon* trayIcon_;
     QShortcut* undoShortcut_;
+    QShortcut* redoShortcut_;
 
     // 当前状态
     bool hasImage_;

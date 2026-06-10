@@ -95,6 +95,7 @@ signals:
     void deleteSelectedClicked();
     void clearAllClicked();
     void undoClicked();
+    void redoClicked();
 
     // 鼠标绘制控制
     void startDrawingClicked();
@@ -153,6 +154,7 @@ private:
     QPushButton* deleteBtn_;
     QPushButton* clearBtn_;
     QPushButton* undoBtn_;
+    QPushButton* redoBtn_;
     QPushButton* startDrawBtn_;
     QPushButton* stopDrawBtn_;
     QPushButton* resetZoomBtn_;

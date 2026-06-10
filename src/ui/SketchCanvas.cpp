@@ -21,19 +21,36 @@ SketchCanvas::SketchCanvas(QWidget* parent)
 SketchCanvas::~SketchCanvas() {}
 
 void SketchCanvas::saveState() {
-    // 将当前 polylines_ 压入撤销栈
     QVector<Polyline> state(polylines_.begin(), polylines_.end());
     undoStack_.push(state);
-    // 限制栈大小为最大20步
     while (undoStack_.size() > MAX_UNDO_STEPS) {
         undoStack_.pop();
     }
+    // 新操作后清空重做栈
+    redoStack_.clear();
 }
 
 void SketchCanvas::undo() {
     if (undoStack_.isEmpty()) return;
+    // 保存当前状态到重做栈
+    QVector<Polyline> current(polylines_.begin(), polylines_.end());
+    redoStack_.push(current);
+    // 恢复上一步
     QVector<Polyline> prevState = undoStack_.pop();
     polylines_.assign(prevState.begin(), prevState.end());
+    selectedPolylineIndex_ = -1;
+    update();
+    emit polylineModified();
+}
+
+void SketchCanvas::redo() {
+    if (redoStack_.isEmpty()) return;
+    // 保存当前状态到撤销栈
+    QVector<Polyline> current(polylines_.begin(), polylines_.end());
+    undoStack_.push(current);
+    // 恢复下一步
+    QVector<Polyline> nextState = redoStack_.pop();
+    polylines_.assign(nextState.begin(), nextState.end());
     selectedPolylineIndex_ = -1;
     update();
     emit polylineModified();
@@ -385,6 +402,36 @@ void SketchCanvas::mousePressEvent(QMouseEvent* event) {
                 if (index >= 0) {
                     selectedPolylineIndex_ = index;
                     cutSelectedPolyline(event->pos());
+                }
+                break;
+            }
+            case EditMode::Composite: {
+                // 综合模式：左键选择/切割，右键删除
+                if (event->button() == Qt::LeftButton) {
+                    int index = findNearestPolyline(event->pos());
+                    if (index >= 0) {
+                        // 如果点击的是已选中的线段，则切割
+                        if (index == selectedPolylineIndex_) {
+                            cutSelectedPolyline(event->pos());
+                        } else {
+                            // 否则选中
+                            selectedPolylineIndex_ = index;
+                        }
+                        emit polylineSelected(selectedPolylineIndex_);
+                        update();
+                    } else {
+                        selectedPolylineIndex_ = -1;
+                        update();
+                    }
+                } else if (event->button() == Qt::RightButton) {
+                    // 右键删除选中的线段
+                    if (selectedPolylineIndex_ >= 0) {
+                        saveState();
+                        polylines_.erase(polylines_.begin() + selectedPolylineIndex_);
+                        selectedPolylineIndex_ = -1;
+                        emit polylineModified();
+                        update();
+                    }
                 }
                 break;
             }

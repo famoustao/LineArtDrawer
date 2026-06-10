@@ -15,7 +15,8 @@ enum class EditMode {
     Select,     // 选择模式
     Draw,       // 手绘模式
     Erase,      // 擦除模式
-    Cut         // 切割模式
+    Cut,        // 切割模式
+    Composite   // 综合模式（选择+切割+删除）
 };
 
 // 线稿画布：支持可视化编辑
@@ -67,8 +68,14 @@ public:
     // 撤销上一步操作
     void undo();
 
+    // 重做（前进）
+    void redo();
+
     // 查询撤销栈是否为空
     bool canUndo() const { return !undoStack_.isEmpty(); }
+
+    // 查询重做栈是否为空
+    bool canRedo() const { return !redoStack_.isEmpty(); }
 
 signals:
     void polylineSelected(int index);
@@ -98,6 +105,7 @@ private:
 
     // 撤销栈（最大20步）
     QStack<QVector<Polyline>> undoStack_;
+    QStack<QVector<Polyline>> redoStack_;
     static const int MAX_UNDO_STEPS = 20;
 
     // 绘制背景

@@ -94,6 +94,10 @@ void MainWindow::setupUI() {
     undoShortcut_ = new QShortcut(QKeySequence("Ctrl+Z"), this);
     connect(undoShortcut_, &QShortcut::activated, this, &MainWindow::onUndo);
 
+    // Ctrl+Y 重做快捷键
+    redoShortcut_ = new QShortcut(QKeySequence("Ctrl+Y"), this);
+    connect(redoShortcut_, &QShortcut::activated, this, &MainWindow::onRedo);
+
     updateStatusBar("就绪 - 请导入图片开始。按F7设置左上角，F8设置右下角");
 }
 
@@ -117,6 +121,8 @@ void MainWindow::connectSignals() {
             this, &MainWindow::onClearAll);
     connect(controlPanel_, &ControlPanel::undoClicked,
             this, &MainWindow::onUndo);
+    connect(controlPanel_, &ControlPanel::redoClicked,
+            this, &MainWindow::onRedo);
     connect(controlPanel_, &ControlPanel::resetZoomClicked,
             this, &MainWindow::onResetZoom);
     connect(controlPanel_, &ControlPanel::startDrawingClicked,
@@ -687,6 +693,7 @@ void MainWindow::onEditModeChanged(int mode) {
         case EditMode::Draw: modeStr = "手绘模式"; break;
         case EditMode::Erase: modeStr = "擦除模式"; break;
         case EditMode::Cut: modeStr = "切割模式 (点击线段切割)"; break;
+        case EditMode::Composite: modeStr = "综合模式 (左键选择/切割, 右键删除)"; break;
     }
     updateStatusBar(QString("编辑模式: %1").arg(modeStr));
 }
@@ -710,6 +717,15 @@ void MainWindow::onUndo() {
         updateStatusBar("已撤销上一步操作");
     } else {
         updateStatusBar("没有可撤销的操作");
+    }
+}
+
+void MainWindow::onRedo() {
+    if (canvas_->canRedo()) {
+        canvas_->redo();
+        updateStatusBar("已重做操作");
+    } else {
+        updateStatusBar("没有可重做的操作");
     }
 }
 

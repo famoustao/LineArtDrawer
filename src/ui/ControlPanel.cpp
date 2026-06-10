@@ -130,16 +130,19 @@ void ControlPanel::setupUI() {
     editModeCombo_->addItem("手绘模式", 2);
     editModeCombo_->addItem("擦除模式", 3);
     editModeCombo_->addItem("切割模式", 4);
+    editModeCombo_->addItem("综合模式 (选择+切割+删除)", 5);
     editLayout->addWidget(editModeCombo_);
 
     QHBoxLayout* editBtnLayout = new QHBoxLayout();
     deleteBtn_ = new QPushButton("删除选中", this);
     clearBtn_ = new QPushButton("清空全部", this);
     undoBtn_ = new QPushButton("撤销 [Ctrl+Z]", this);
+    redoBtn_ = new QPushButton("重做 [Ctrl+Y]", this);
+    editBtnLayout->addWidget(undoBtn_);
+    editBtnLayout->addWidget(redoBtn_);
     editBtnLayout->addWidget(deleteBtn_);
     editBtnLayout->addWidget(clearBtn_);
     editLayout->addLayout(editBtnLayout);
-    editLayout->addWidget(undoBtn_);
 
     tab2Layout->addWidget(editGroup);
 
@@ -238,8 +241,8 @@ void ControlPanel::setupUI() {
     QGroupBox* drawCtrlGroup = new QGroupBox("绘制控制", this);
     QVBoxLayout* drawCtrlLayout = new QVBoxLayout(drawCtrlGroup);
 
-    startDrawBtn_ = new QPushButton("开始绘制", this);
-    stopDrawBtn_ = new QPushButton("停止绘制", this);
+    startDrawBtn_ = new QPushButton("开始绘制 [空格]", this);
+    stopDrawBtn_ = new QPushButton("停止绘制 [ESC]", this);
     drawCtrlLayout->addWidget(startDrawBtn_);
     drawCtrlLayout->addWidget(stopDrawBtn_);
 
@@ -361,6 +364,7 @@ void ControlPanel::connectSignals() {
     connect(deleteBtn_, &QPushButton::clicked, this, &ControlPanel::deleteSelectedClicked);
     connect(clearBtn_, &QPushButton::clicked, this, &ControlPanel::clearAllClicked);
     connect(undoBtn_, &QPushButton::clicked, this, &ControlPanel::undoClicked);
+    connect(redoBtn_, &QPushButton::clicked, this, &ControlPanel::redoClicked);
     connect(startDrawBtn_, &QPushButton::clicked, this, &ControlPanel::startDrawingClicked);
     connect(stopDrawBtn_, &QPushButton::clicked, this, &ControlPanel::stopDrawingClicked);
     connect(resetZoomBtn_, &QPushButton::clicked, this, &ControlPanel::resetZoomClicked);
