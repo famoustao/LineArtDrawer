@@ -1,0 +1,84 @@
+name: Build Windows Executable (MSVC)
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build-windows-msvc:
+    runs-on: windows-2022
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup MSVC
+      uses: ilammy/msvc-dev-cmd@v1
+      with:
+        arch: x64
+
+    - name: Install Qt6
+      uses: jurplel/install-qt-action@v4
+      with:
+        version: '6.6.3'
+        host: 'windows'
+        target: 'desktop'
+        arch: 'win64_msvc2019_64'
+        modules: 'qtbase'
+        set-env: true
+        install-deps: true
+
+    - name: Download OpenCV prebuilt
+      run: |
+        $url = "https://github.com/opencv/opencv/releases/download/4.9.0/opencv-4.9.0-windows.exe"
+        $output = "opencv-installer.exe"
+        Write-Host "Downloading OpenCV..."
+        Invoke-WebRequest -Uri $url -OutFile $output -UseBasicParsing
+        Write-Host "Extracting OpenCV..."
+        Start-Process -FilePath $output -ArgumentList "-y","-gm2","C:\opencv" -Wait
+        Write-Host "OpenCV installed to C:\opencv"
+        echo "OPENCV_DIR=C:\opencv\build" >> $env:GITHUB_ENV
+
+    - name: Configure CMake
+      run: |
+        cmake -B build -S . `
+          -G "Visual Studio 17 2022" -A x64 `
+          -DCMAKE_BUILD_TYPE=Release `
+          -DCMAKE_PREFIX_PATH="${env:Qt6_DIR};C:\opencv\build"
+
+    - name: Build
+      run: cmake --build build --config Release --parallel 4
+
+    - name: Deploy Qt dependencies
+      run: |
+        $qtBinPath = Split-Path -Parent (Get-Command qmake.exe).Source
+        windeployqt.exe --release build\Release\SketchMaster.exe
+
+    - name: Copy OpenCV DLLs
+      run: |
+        $opencvBin = "C:\opencv\build\x64\vc16\bin"
+        Copy-Item "$opencvBin\opencv_core490.dll" build\Release\ -ErrorAction SilentlyContinue
+        Copy-Item "$opencvBin\opencv_imgproc490.dll" build\Release\ -ErrorAction SilentlyContinue
+        Copy-Item "$opencvBin\opencv_imgcodecs490.dll" build\Release\ -ErrorAction SilentlyContinue
+        Copy-Item "$opencvBin\opencv_highgui490.dll" build\Release\ -ErrorAction SilentlyContinue
+        Copy-Item "$opencvBin\opencv_imgcodecs490.dll" build\Release\ -ErrorAction SilentlyContinue
+
+    - name: Copy resources
+      run: |
+        if (Test-Path "resources") {
+          Copy-Item -Recurse -Force "resources" "build\Release\resources"
+        }
+
+    - name: Create ZIP package
+      run: |
+        Compress-Archive -Path "build\Release\*" -DestinationPath "SketchMaster-Windows-x64.zip" -Force
+
+    - name: Upload artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: SketchMaster-Windows-x64
+        path: SketchMaster-Windows-x64.zip
+        retention-days: 30
