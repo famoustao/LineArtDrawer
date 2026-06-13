@@ -657,31 +657,6 @@ void ControlPanel::setPressureLevel(int level) {
     }
 }
 
-// 图像追踪参数 Getter
-int ControlPanel::getTraceColors() const {
-    return traceColorsSpin_->value();
-}
-
-int ControlPanel::getTraceBlurSize() const {
-    return traceBlurSpin_->value();
-}
-
-double ControlPanel::getTraceCurveThreshold() const {
-    return traceThresholdSpin_->value();
-}
-
-bool ControlPanel::getTraceFillHoles() const {
-    return traceFillHolesCheck_->isChecked();
-}
-
-int ControlPanel::getTraceMinArea() const {
-    return traceMinAreaSpin_->value();
-}
-
-bool ControlPanel::getTraceSmoothPaths() const {
-    return traceSmoothPathsCheck_->isChecked();
-}
-
 int ControlPanel::getSelectedAlgorithm() const {
     return algorithmCombo_->currentIndex();
 }

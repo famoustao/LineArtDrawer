@@ -43,13 +43,8 @@ public:
     void setPixelPerfect(bool enabled);
     void setPressureLevel(int level);
 
-    // 图像追踪参数
-    int getTraceColors() const;
-    int getTraceBlurSize() const;
-    double getTraceCurveThreshold() const;
-    bool getTraceFillHoles() const;
-    int getTraceMinArea() const;
-    bool getTraceSmoothPaths() const;
+    // 算法选择
+    int getSelectedAlgorithm() const;
 
     // 延迟时间
     int getDelaySeconds() const;
