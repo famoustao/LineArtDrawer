@@ -16,7 +16,7 @@ configure_file(
 )
 
 # 查找依赖包
-find_package(OpenCV REQUIRED COMPONENTS core imgproc imgcodecs)
+find_package(OpenCV REQUIRED COMPONENTS core imgproc imgcodecs dnn)
 find_package(Qt6 REQUIRED COMPONENTS Core Widgets Gui)
 
 # 启用Qt自动处理
@@ -29,6 +29,8 @@ set(SOURCES
     src/main.cpp
     src/core/ImageProcessor.cpp
     src/core/LineArtGenerator.cpp
+    src/core/HEDDetector.cpp
+    src/core/MLSDDetector.cpp
     src/core/SVGExporter.cpp
     src/core/SVGImporter.cpp
     src/core/PathSimplifier.cpp
@@ -45,6 +47,8 @@ set(SOURCES
 set(HEADERS
     src/core/ImageProcessor.h
     src/core/LineArtGenerator.h
+    src/core/HEDDetector.h
+    src/core/MLSDDetector.h
     src/core/SVGExporter.h
     src/core/SVGImporter.h
     src/core/PathSimplifier.h
