@@ -104,11 +104,32 @@ jobs:
           Copy-Item -Recurse -Force "$vcpkgDir\bin\OpenCV" "$outDir\OpenCV"
         }
 
-    - name: Copy resources
+    - name: Copy resources, scripts and model directories
       run: |
         if (Test-Path "resources") {
           Copy-Item -Recurse -Force "resources" "build\Release\resources"
         }
+        if (Test-Path "scripts") {
+          Copy-Item -Recurse -Force "scripts" "build\Release\scripts"
+        }
+        # 创建模型目录结构（模型文件本身因体积太大不包含在仓库中）
+        if (-not (Test-Path "build\Release\models\hed")) {
+          New-Item -ItemType Directory -Path "build\Release\models\hed" -Force
+        }
+        if (-not (Test-Path "build\Release\models\mlsd")) {
+          New-Item -ItemType Directory -Path "build\Release\models\mlsd" -Force
+        }
+        # 复制模型 README 和下载脚本
+        if (Test-Path "models\hed\README.md") {
+          Copy-Item -Force "models\hed\README.md" "build\Release\models\hed\README.md"
+        }
+        if (Test-Path "models\mlsd\README.md") {
+          Copy-Item -Force "models\mlsd\README.md" "build\Release\models\mlsd\README.md"
+        }
+        if (Test-Path "models\download_models.bat") {
+          Copy-Item -Force "models\download_models.bat" "build\Release\models\download_models.bat"
+        }
+        Write-Host "模型目录结构已创建（模型文件需用户自行下载）"
 
     - name: Upload artifact
       uses: actions/upload-artifact@v4
