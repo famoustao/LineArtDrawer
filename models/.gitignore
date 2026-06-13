@@ -1,0 +1,12 @@
+# 忽略大模型文件
+*.caffemodel
+*.onnx
+*.pth
+*.pt
+*.bin
+
+# 保留 README 和下载脚本
+!README.md
+!download_models.sh
+!download_models.bat
+!.gitignore
