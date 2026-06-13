@@ -36,7 +36,6 @@ private slots:
     void onImportImage();
     void onImportSVG();
     void onExportSVG();
-    void onTraceToSVG();
 
     // 线稿生成
     void onGenerateLineArt();

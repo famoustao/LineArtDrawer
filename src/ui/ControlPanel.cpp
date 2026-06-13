@@ -44,12 +44,10 @@ void ControlPanel::setupUI() {
     importImageBtn_ = new QPushButton("导入图片", this);
     importSVGBtn_ = new QPushButton("导入SVG线稿", this);
     exportSVGBtn_ = new QPushButton("导出SVG线稿", this);
-    traceToSVGBtn_ = new QPushButton("图片转SVG (保留原图)", this);
 
     tab1Layout->addWidget(importImageBtn_);
     tab1Layout->addWidget(importSVGBtn_);
     tab1Layout->addWidget(exportSVGBtn_);
-    tab1Layout->addWidget(traceToSVGBtn_);
     tab1Layout->addStretch();
 
     tabWidget_->addTab(tab1, "文件操作");
@@ -124,15 +122,16 @@ void ControlPanel::setupUI() {
     algorithmCombo_->addItem("Laplacian 拉普拉斯 (快速/二阶微分)", 4);
     algorithmCombo_->addItem("LSD 直线检测 (建筑/机械)", 5);
     algorithmCombo_->addItem("形态学边缘 (快速/粗线条)", 6);
+    algorithmCombo_->addItem("HED 深度边缘 (人像/复杂) [需模型]", 7);
+    algorithmCombo_->addItem("MLSD 直线检测 (建筑/直线) [需模型]", 8);
     algorithmCombo_->insertSeparator(algorithmCombo_->count());
-    algorithmCombo_->addItem("HED 深度边缘 (人像/复杂)", 7);
-    algorithmCombo_->addItem("ControlNet LineArt (插画/漫画)", 8);
-    algorithmCombo_->addItem("ControlNet MLSD (建筑/直线)", 9);
-    algorithmCombo_->addItem("ArtLine (人像/肖像)", 10);
-    algorithmCombo_->addItem("CycleGAN (风格转换)", 11);
-    algorithmCombo_->addItem("SAGAN (自注意力生成)", 12);
-    algorithmCombo_->addItem("APDrawingGAN (肖像线稿)", 13);
-    algorithmCombo_->addItem("DiT+LoRA (专业/考古)", 14);
+    algorithmCombo_->addItem("ControlNet LineArt (插画/漫画)", 10);
+    algorithmCombo_->addItem("ControlNet MLSD (建筑/直线)", 11);
+    algorithmCombo_->addItem("ArtLine (人像/肖像)", 12);
+    algorithmCombo_->addItem("CycleGAN (风格转换)", 13);
+    algorithmCombo_->addItem("SAGAN (自注意力生成)", 14);
+    algorithmCombo_->addItem("APDrawingGAN (肖像线稿)", 15);
+    algorithmCombo_->addItem("DiT+LoRA (专业/考古)", 16);
     algoLayout->addWidget(algorithmCombo_);
     genLayout->addLayout(algoLayout);
 
@@ -345,62 +344,6 @@ void ControlPanel::setupUI() {
 
     tabWidget_->addTab(tab3, "绘制控制");
 
-    // ============================
-    // Tab4: 图片转SVG
-    // ============================
-    QWidget* tab4 = new QWidget(this);
-    QVBoxLayout* tab4Layout = new QVBoxLayout(tab4);
-
-    QGroupBox* traceGroup = new QGroupBox("图片转SVG参数", this);
-    QGridLayout* traceLayout = new QGridLayout(traceGroup);
-
-    // 颜色数量 + 提示
-    traceLayout->addWidget(new QLabel("颜色数量:", this), 0, 0);
-    traceColorsSpin_ = new QSpinBox(this);
-    traceColorsSpin_->setRange(2, 256);
-    traceColorsSpin_->setValue(16);
-    traceLayout->addWidget(traceColorsSpin_, 0, 1);
-    QLabel* colorsHint = new QLabel("简单图(8-16色)\n照片(32-64色)\n复杂图(64-128色)", this);
-    colorsHint->setStyleSheet("color: #888; font-size: 11px;");
-    traceLayout->addWidget(colorsHint, 0, 2);
-
-    // 模糊大小
-    traceLayout->addWidget(new QLabel("模糊大小:", this), 1, 0);
-    traceBlurSpin_ = new QSpinBox(this);
-    traceBlurSpin_->setRange(0, 10);
-    traceBlurSpin_->setValue(1);
-    traceLayout->addWidget(traceBlurSpin_, 1, 1);
-
-    // 曲线阈值
-    traceLayout->addWidget(new QLabel("曲线阈值:", this), 2, 0);
-    traceThresholdSpin_ = new QDoubleSpinBox(this);
-    traceThresholdSpin_->setRange(0.1, 10.0);
-    traceThresholdSpin_->setValue(1.0);
-    traceThresholdSpin_->setSingleStep(0.5);
-    traceLayout->addWidget(traceThresholdSpin_, 2, 1);
-
-    // 最小区域
-    traceLayout->addWidget(new QLabel("最小区域:", this), 3, 0);
-    traceMinAreaSpin_ = new QSpinBox(this);
-    traceMinAreaSpin_->setRange(1, 500);
-    traceMinAreaSpin_->setValue(20);
-    traceLayout->addWidget(traceMinAreaSpin_, 3, 1);
-
-    // 填充孔洞
-    traceFillHolesCheck_ = new QCheckBox("填充孔洞", this);
-    traceFillHolesCheck_->setChecked(true);
-    traceLayout->addWidget(traceFillHolesCheck_, 4, 0, 1, 2);
-
-    // 平滑路径
-    traceSmoothPathsCheck_ = new QCheckBox("平滑路径", this);
-    traceSmoothPathsCheck_->setChecked(true);
-    traceLayout->addWidget(traceSmoothPathsCheck_, 5, 0, 1, 2);
-
-    tab4Layout->addWidget(traceGroup);
-    tab4Layout->addStretch();
-
-    tabWidget_->addTab(tab4, "图片转SVG");
-
     // 将tabWidget添加到主布局
     mainLayout->addWidget(tabWidget_);
 }
@@ -410,7 +353,6 @@ void ControlPanel::connectSignals() {
     connect(importImageBtn_, &QPushButton::clicked, this, &ControlPanel::importImageClicked);
     connect(importSVGBtn_, &QPushButton::clicked, this, &ControlPanel::importSVGClicked);
     connect(exportSVGBtn_, &QPushButton::clicked, this, &ControlPanel::exportSVGClicked);
-    connect(traceToSVGBtn_, &QPushButton::clicked, this, &ControlPanel::traceToSVGClicked);
     connect(generateBtn_, &QPushButton::clicked, this, &ControlPanel::generateLineArtClicked);
     connect(generateCannyBtn_, &QPushButton::clicked, this, &ControlPanel::generateCannyClicked);
     connect(generateWithAlgoBtn_, &QPushButton::clicked, this, &ControlPanel::generateWithAlgorithmClicked);
@@ -428,14 +370,16 @@ void ControlPanel::connectSignals() {
             case 4:  hint = "适用场景: 快速/二阶微分 - 二阶微分边缘检测，对噪声敏感"; break;
             case 5:  hint = "适用场景: 建筑/机械 - 直线段检测，适合建筑结构图"; break;
             case 6:  hint = "适用场景: 快速/粗线条 - 膨胀减腐蚀提取边缘"; break;
-            case 8:  hint = "适用场景: 插画/漫画 - 需要Python+PyTorch+diffusers"; break;
-            case 9:  hint = "适用场景: 建筑/直线 - 需要Python+PyTorch+diffusers"; break;
-            case 10: hint = "适用场景: 人像/肖像 - 需要Python+PyTorch"; break;
-            case 11: hint = "适用场景: 风格转换 - 需要Python+PyTorch"; break;
-            case 12: hint = "适用场景: 自注意力生成 - 需要Python+PyTorch"; break;
-            case 13: hint = "适用场景: 肖像线稿 - 需要Python+PyTorch"; break;
-            case 14: hint = "适用场景: 专业/考古 - 需要Python+PyTorch"; break;
-            default: hint = "适用场景: 人像/复杂 - 需要Python+PyTorch"; break;
+            case 7:  hint = "适用场景: 人像/复杂 - 深度学习边缘检测，需要 models/hed/ 模型文件"; break;
+            case 8:  hint = "适用场景: 建筑/直线 - 深度学习直线检测，需要 models/mlsd/ 模型文件"; break;
+            case 10: hint = "适用场景: 插画/漫画 - 需要Python+PyTorch+diffusers"; break;
+            case 11: hint = "适用场景: 建筑/直线 - 需要Python+PyTorch+diffusers"; break;
+            case 12: hint = "适用场景: 人像/肖像 - 需要Python+PyTorch"; break;
+            case 13: hint = "适用场景: 风格转换 - 需要Python+PyTorch"; break;
+            case 14: hint = "适用场景: 自注意力生成 - 需要Python+PyTorch"; break;
+            case 15: hint = "适用场景: 肖像线稿 - 需要Python+PyTorch"; break;
+            case 16: hint = "适用场景: 专业/考古 - 需要Python+PyTorch"; break;
+            default: hint = ""; break;
         }
         algorithmHintLabel_->setText(hint);
         emit algorithmChanged(index);

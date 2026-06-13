@@ -123,8 +123,6 @@ void MainWindow::connectSignals() {
             this, &MainWindow::onImportSVG);
     connect(controlPanel_, &ControlPanel::exportSVGClicked,
             this, &MainWindow::onExportSVG);
-    connect(controlPanel_, &ControlPanel::traceToSVGClicked,
-            this, &MainWindow::onTraceToSVG);
     connect(controlPanel_, &ControlPanel::generateLineArtClicked,
             this, &MainWindow::onGenerateLineArt);
     connect(controlPanel_, &ControlPanel::generateCannyClicked,
@@ -543,59 +541,6 @@ void MainWindow::onExportSVG() {
     updateStatusBar(QString("已导出SVG: %1").arg(fileName));
 }
 
-void MainWindow::onTraceToSVG() {
-    if (!hasImage_) {
-        QMessageBox::warning(this, "警告", "请先导入图片！");
-        return;
-    }
-
-    QString fileName = QFileDialog::getSaveFileName(this,
-        "图片转SVG (保留原图)",
-        QString(),
-        "SVG文件 (*.svg);;所有文件 (*)");
-
-    if (fileName.isEmpty()) return;
-
-    if (!fileName.endsWith(".svg", Qt::CaseInsensitive)) {
-        fileName += ".svg";
-    }
-
-    updateStatusBar("正在进行图片追踪转换...");
-    QApplication::processEvents();
-
-    // 从LineArtGenerator获取原始图片
-    cv::Mat originalImage = lineArtGenerator_.getOriginalImageCV();
-    if (originalImage.empty()) {
-        QMessageBox::critical(this, "错误", "无法获取原始图片数据！");
-        return;
-    }
-
-    // 设置追踪参数
-    TraceParams params;
-    params.colors = controlPanel_->getTraceColors();
-    params.blurSize = controlPanel_->getTraceBlurSize();
-    params.curveThreshold = controlPanel_->getTraceCurveThreshold();
-    params.fillHoles = controlPanel_->getTraceFillHoles();
-    params.minArea = controlPanel_->getTraceMinArea();
-    params.smoothPaths = controlPanel_->getTraceSmoothPaths();
-
-    imageTracer_.setParams(params);
-
-    if (!imageTracer_.loadImage(originalImage)) {
-        QMessageBox::critical(this, "错误", QString::fromStdString(imageTracer_.getError()));
-        return;
-    }
-
-    if (!imageTracer_.traceToSVG(fileName.toLocal8Bit().toStdString())) {
-        QMessageBox::critical(this, "错误", QString::fromStdString(imageTracer_.getError()));
-        return;
-    }
-
-    updateStatusBar(QString("图片转SVG完成: %1 (颜色数:%2)")
-        .arg(fileName)
-        .arg(params.colors));
-}
-
 // === 线稿生成槽函数 ===
 
 void MainWindow::onGenerateLineArt() {
@@ -661,20 +606,15 @@ void MainWindow::onGenerateWithAlgorithm() {
     int algoIndex = controlPanel_->getSelectedAlgorithm();
 
     // 算法名称列表（与ControlPanel中的下拉框索引对应）
-    // 索引0-6: 内置算法（Canny, DoG, Sobel, Scharr, Laplacian, LSD, 形态学）
-    // 索引7之后: 外部算法（跳过分隔线，实际映射到外部算法）
-    // 注意：下拉框中有一个分隔符，所以实际索引需要调整
-
-    // 内置算法索引映射（跳过分隔符）
-    // 下拉框索引: 0=Canny, 1=DoG, 2=Sobel, 3=Scharr, 4=Laplacian, 5=LSD, 6=形态学
-    // 分隔符: 索引7
-    // 外部算法: 索引8=HED, 9=ControlNet LineArt, 10=ControlNet MLSD, 11=ArtLine, 12=CycleGAN, 13=SAGAN, 14=APDrawingGAN, 15=DiT+LoRA
+    // 索引0-8: 内置算法（Canny, DoG, Sobel, Scharr, Laplacian, LSD, 形态学, HED, MLSD）
+    // 索引9: 分隔符
+    // 索引10-16: 外部算法（ControlNet LineArt, ControlNet MLSD, ArtLine, CycleGAN, SAGAN, APDrawingGAN, DiT+LoRA）
 
     double mergeDistance = controlPanel_->getMergeDistance();
     double simplifyEpsilon = controlPanel_->getSimplifyEpsilon();
 
-    // 内置算法 (索引 0-6)
-    if (algoIndex >= 0 && algoIndex <= 6) {
+    // 内置算法 (索引 0-8)
+    if (algoIndex >= 0 && algoIndex <= 8) {
         updateStatusBar("正在使用内置算法生成线稿...");
         QApplication::processEvents();
 
@@ -716,40 +656,61 @@ void MainWindow::onGenerateWithAlgorithm() {
                 QApplication::processEvents();
                 polylines = lineArtGenerator_.generateLineArtMorphological(3, mergeDistance, simplifyEpsilon);
                 break;
+            case 7: // HED
+                updateStatusBar("正在使用 HED 深度边缘检测...");
+                QApplication::processEvents();
+                polylines = lineArtGenerator_.generateLineArtHED(mergeDistance, simplifyEpsilon);
+                break;
+            case 8: // MLSD
+                updateStatusBar("正在使用 MLSD 直线检测...");
+                QApplication::processEvents();
+                polylines = lineArtGenerator_.generateLineArtMLSD(mergeDistance, simplifyEpsilon);
+                break;
             default:
                 break;
         }
 
         if (polylines.empty()) {
-            QMessageBox::warning(this, "警告", "未能生成线稿，请尝试调整参数！");
+            // 对于 HED/MLSD，如果返回空可能是模型未找到，给出更详细的提示
+            if (algoIndex == 7 || algoIndex == 8) {
+                QString modelName = (algoIndex == 7) ? "HED" : "MLSD";
+                QString modelDir = (algoIndex == 7) ? "models/hed/" : "models/mlsd/";
+                QMessageBox::warning(this, "模型未找到",
+                    QString("未能加载 %1 模型。\n\n"
+                            "请在程序目录下的 %2 文件夹中放置模型文件。\n"
+                            "下载方式请参考 models/ 目录下的 README.md。\n\n"
+                            "或者运行 models/download_models.bat 下载模型。")
+                        .arg(modelName).arg(modelDir));
+            } else {
+                QMessageBox::warning(this, "警告", "未能生成线稿，请尝试调整参数！");
+            }
             return;
         }
 
         canvas_->setPolylines(polylines);
         hasLineArt_ = true;
 
-        QStringList algoNames = {"Canny", "DoG", "Sobel", "Scharr", "Laplacian", "LSD", "形态学"};
+        QStringList algoNames = {"Canny", "DoG", "Sobel", "Scharr", "Laplacian", "LSD", "形态学", "HED", "MLSD"};
         updateStatusBar(QString("%1 线稿生成完成: %2 条路径")
             .arg(algoNames[algoIndex])
             .arg(polylines.size()));
         return;
     }
 
-    // 外部算法 (索引 8-15，跳过分隔符索引7)
-    if (algoIndex >= 8) {
+    // 外部算法 (索引 10-16，跳过分隔符索引9)
+    if (algoIndex >= 10) {
         // 外部算法名称映射
         QStringList algoNames = {
-            "hed",                  // 索引8
-            "controlnet_lineart",  // 索引9
-            "controlnet_mlsd",      // 索引10
-            "artline",              // 索引11
-            "cyclegan",             // 索引12
-            "sagan",                // 索引13
-            "apdrawinggan",         // 索引14
-            "dit_lora"              // 索引15
+            "controlnet_lineart",  // 索引10
+            "controlnet_mlsd",      // 索引11
+            "artline",              // 索引12
+            "cyclegan",             // 索引13
+            "sagan",                // 索引14
+            "apdrawinggan",         // 索引15
+            "dit_lora"              // 索引16
         };
 
-        int externalIndex = algoIndex - 8;
+        int externalIndex = algoIndex - 10;
         if (externalIndex < 0 || externalIndex >= algoNames.size()) {
             QMessageBox::warning(this, "警告", "未知的算法选择！");
             return;
@@ -1081,6 +1042,7 @@ void MainWindow::onStartDrawing() {
     // 如果 lineArtGenerator 宽高为0（比如通过导入SVG加载的），从 polylines 计算边界框
     int artWidth = lineArtGenerator_.getWidth();
     int artHeight = lineArtGenerator_.getHeight();
+    double artOriginX = 0, artOriginY = 0;
     if (artWidth <= 0 || artHeight <= 0) {
         double minX = 1e9, minY = 1e9, maxX = -1e9, maxY = -1e9;
         for (const auto& poly : polylines) {
@@ -1091,12 +1053,15 @@ void MainWindow::onStartDrawing() {
                 if (pt.y > maxY) maxY = pt.y;
             }
         }
+        artOriginX = minX;
+        artOriginY = minY;
         artWidth = static_cast<int>(maxX - minX) + 1;
         artHeight = static_cast<int>(maxY - minY) + 1;
         if (artWidth <= 0) artWidth = 800;
         if (artHeight <= 0) artHeight = 600;
     }
     mousePainter_.setLineArtSize(artWidth, artHeight);
+    mousePainter_.setLineArtOrigin(artOriginX, artOriginY);
 
     // 使用控制面板中的延迟时间（默认5秒，范围3-60秒）
     int delaySeconds = controlPanel_->getDelaySeconds();

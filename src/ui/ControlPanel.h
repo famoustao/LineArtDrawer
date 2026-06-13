@@ -80,7 +80,8 @@ public:
     int getSelectedAlgorithm() const;
 
     // 内置算法数量（用于区分内置和外部算法）
-    static const int BUILTIN_ALGORITHM_COUNT = 8;
+    // 0-8: Canny, DoG, Sobel, Scharr, Laplacian, LSD, 形态学, HED, MLSD
+    static const int BUILTIN_ALGORITHM_COUNT = 9;
 
 signals:
     // 线稿生成相关
@@ -91,7 +92,6 @@ signals:
     void importImageClicked();
     void exportSVGClicked();
     void importSVGClicked();
-    void traceToSVGClicked();
 
     // 参数变化
     void contrastChanged(double value);
@@ -167,7 +167,6 @@ private:
     QPushButton* generateWithAlgoBtn_;
     QPushButton* exportSVGBtn_;
     QPushButton* importSVGBtn_;
-    QPushButton* traceToSVGBtn_;
     QPushButton* deleteBtn_;
     QPushButton* clearBtn_;
     QPushButton* undoBtn_;
@@ -186,14 +185,6 @@ private:
     QPushButton* cutBtn_;
     QPushButton* smartMergeBtn_;
     QPushButton* drawModeBtn_;
-
-    // 图像追踪参数
-    QSpinBox* traceColorsSpin_;
-    QSpinBox* traceBlurSpin_;
-    QDoubleSpinBox* traceThresholdSpin_;
-    QCheckBox* traceFillHolesCheck_;
-    QSpinBox* traceMinAreaSpin_;
-    QCheckBox* traceSmoothPathsCheck_;
 
     // 延迟时间
     QSpinBox* delaySpin_;
