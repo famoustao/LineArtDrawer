@@ -71,9 +71,6 @@ public:
     // 更新手绘模式按钮状态
     void setDrawModeActive(bool active);
 
-    // 获取当前选择的算法索引
-    int getSelectedAlgorithm() const;
-
     // 内置算法数量（用于区分内置和外部算法）
     // 0-8: Canny, DoG, Sobel, Scharr, Laplacian, LSD, 形态学, HED, MLSD
     static const int BUILTIN_ALGORITHM_COUNT = 9;
