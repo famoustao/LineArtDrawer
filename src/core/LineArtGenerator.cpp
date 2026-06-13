@@ -426,4 +426,122 @@ std::vector<Polyline> LineArtGenerator::generateLineArtFromEdgeImage(const cv::M
     return polylines;
 }
 
+// ============================
+// 内置算法：HED 深度边缘检测 (OpenCV DNN)
+// ============================
+std::vector<Polyline> LineArtGenerator::generateLineArtHED(double mergeDistance,
+                                                             double simplifyEpsilon) {
+    if (!imageProcessor_.isLoaded()) {
+        return std::vector<Polyline>();
+    }
+
+    // 尝试加载 HED 模型（如果还没加载）
+    if (!hedDetector_.isLoaded()) {
+        // 从多个候选路径尝试加载
+        std::vector<std::string> modelPaths = {
+            "models/hed/",
+            "../models/hed/",
+        };
+
+        bool loaded = false;
+        for (const auto& path : modelPaths) {
+            if (hedDetector_.loadModel(path)) {
+                loaded = true;
+                break;
+            }
+        }
+
+        if (!loaded) {
+            std::cerr << "[LineArtGenerator] HED 模型加载失败，无法使用 HED 算法。" << std::endl;
+            std::cerr << "[LineArtGenerator] 请参考 models/hed/README.md 下载模型文件。" << std::endl;
+            return std::vector<Polyline>();
+        }
+    }
+
+    // 检测边缘
+    cv::Mat originalImage = imageProcessor_.getOriginalImage();
+    edgeImage_ = hedDetector_.detectEdges(originalImage);
+
+    if (edgeImage_.empty()) {
+        std::cerr << "[LineArtGenerator] HED 边缘检测返回空结果。" << std::endl;
+        return std::vector<Polyline>();
+    }
+
+    // 二值化处理（HED 输出是概率图，需要二值化）
+    cv::Mat binary;
+    cv::threshold(edgeImage_, binary, 128, 255, cv::THRESH_BINARY);
+    edgeImage_ = binary;
+
+    // 提取路径
+    pathSimplifier_.setEpsilon(simplifyEpsilon);
+    bool highPrecision = (simplifyEpsilon < 1.0);
+    auto polylines = pathSimplifier_.extractFromEdges(edgeImage_, highPrecision);
+
+    // 合并相近线段
+    if (mergeDistance > 0 && polylines.size() > 1) {
+        polylines = pathSimplifier_.mergeNearbyLines(polylines, mergeDistance);
+    }
+
+    return polylines;
+}
+
+// ============================
+// 内置算法：MLSD 直线检测 (OpenCV DNN)
+// ============================
+std::vector<Polyline> LineArtGenerator::generateLineArtMLSD(double mergeDistance,
+                                                              double simplifyEpsilon) {
+    if (!imageProcessor_.isLoaded()) {
+        return std::vector<Polyline>();
+    }
+
+    // 尝试加载 MLSD 模型（如果还没加载）
+    if (!mlsdDetector_.isLoaded()) {
+        // 从多个候选路径尝试加载
+        std::vector<std::string> modelPaths = {
+            "models/mlsd/",
+            "../models/mlsd/",
+        };
+
+        bool loaded = false;
+        for (const auto& path : modelPaths) {
+            if (mlsdDetector_.loadModel(path)) {
+                loaded = true;
+                break;
+            }
+        }
+
+        if (!loaded) {
+            std::cerr << "[LineArtGenerator] MLSD 模型加载失败，无法使用 MLSD 算法。" << std::endl;
+            std::cerr << "[LineArtGenerator] 请参考 models/mlsd/README.md 下载模型文件。" << std::endl;
+            return std::vector<Polyline>();
+        }
+    }
+
+    // 检测边缘
+    cv::Mat originalImage = imageProcessor_.getOriginalImage();
+    edgeImage_ = mlsdDetector_.detectEdges(originalImage);
+
+    if (edgeImage_.empty()) {
+        std::cerr << "[LineArtGenerator] MLSD 直线检测返回空结果。" << std::endl;
+        return std::vector<Polyline>();
+    }
+
+    // 确保是二值图像
+    cv::Mat binary;
+    cv::threshold(edgeImage_, binary, 127, 255, cv::THRESH_BINARY);
+    edgeImage_ = binary;
+
+    // 提取路径
+    pathSimplifier_.setEpsilon(simplifyEpsilon);
+    bool highPrecision = (simplifyEpsilon < 1.0);
+    auto polylines = pathSimplifier_.extractFromEdges(edgeImage_, highPrecision);
+
+    // 合并相近线段
+    if (mergeDistance > 0 && polylines.size() > 1) {
+        polylines = pathSimplifier_.mergeNearbyLines(polylines, mergeDistance);
+    }
+
+    return polylines;
+}
+
 } // namespace SketchMaster

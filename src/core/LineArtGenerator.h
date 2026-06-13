@@ -2,6 +2,8 @@
 
 #include "ImageProcessor.h"
 #include "PathSimplifier.h"
+#include "HEDDetector.h"
+#include "MLSDDetector.h"
 #include <vector>
 
 namespace SketchMaster {
@@ -55,6 +57,14 @@ public:
                                                        double mergeDistance = 5.0,
                                                        double simplifyEpsilon = 2.0);
 
+    // HED 深度边缘检测（OpenCV DNN）
+    std::vector<Polyline> generateLineArtHED(double mergeDistance = 5.0,
+                                              double simplifyEpsilon = 2.0);
+
+    // MLSD 直线检测（OpenCV DNN）
+    std::vector<Polyline> generateLineArtMLSD(double mergeDistance = 5.0,
+                                               double simplifyEpsilon = 2.0);
+
     // 从外部边缘图像生成线稿（用于Python脚本输出的结果）
     std::vector<Polyline> generateLineArtFromEdgeImage(const cv::Mat& edgeImage,
                                                        double mergeDistance = 5.0,
@@ -76,6 +86,8 @@ public:
 private:
     ImageProcessor imageProcessor_;
     PathSimplifier pathSimplifier_;
+    HEDDetector hedDetector_;
+    MLSDDetector mlsdDetector_;
     cv::Mat edgeImage_;
 };
 
