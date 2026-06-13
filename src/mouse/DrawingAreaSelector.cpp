@@ -48,7 +48,8 @@ void DrawingAreaSelector::reset() {
     emit areaChanged();
 }
 
-QPoint DrawingAreaSelector::mapPoint(double x, double y, int lineArtWidth, int lineArtHeight) const {
+QPoint DrawingAreaSelector::mapPoint(double x, double y, int lineArtWidth, int lineArtHeight,
+                                      double originX, double originY) const {
     if (!isValid() || lineArtWidth <= 0 || lineArtHeight <= 0) {
         return QPoint(static_cast<int>(x), static_cast<int>(y));
     }
@@ -67,8 +68,9 @@ QPoint DrawingAreaSelector::mapPoint(double x, double y, int lineArtWidth, int l
     int offsetX = (areaWidth - scaledWidth) / 2;
     int offsetY = (areaHeight - scaledHeight) / 2;
 
-    int mappedX = topLeft_.x() + offsetX + static_cast<int>(x * scale);
-    int mappedY = topLeft_.y() + offsetY + static_cast<int>(y * scale);
+    // 减去原点偏移，使线稿最小坐标映射到区域左上角
+    int mappedX = topLeft_.x() + offsetX + static_cast<int>((x - originX) * scale);
+    int mappedY = topLeft_.y() + offsetY + static_cast<int>((y - originY) * scale);
 
     return QPoint(mappedX, mappedY);
 }

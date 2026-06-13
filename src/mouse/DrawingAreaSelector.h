@@ -37,7 +37,9 @@ public:
     void reset();
     
     // 将线稿坐标映射到绘制区域
-    QPoint mapPoint(double x, double y, int lineArtWidth, int lineArtHeight) const;
+    // originX/originY: 线稿坐标系的原点偏移（线稿最小坐标）
+    QPoint mapPoint(double x, double y, int lineArtWidth, int lineArtHeight,
+                    double originX = 0, double originY = 0) const;
 
 signals:
     void topLeftSet(const QPoint& point);

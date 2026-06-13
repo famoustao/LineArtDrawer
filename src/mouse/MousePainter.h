@@ -65,6 +65,9 @@ public:
     // 设置线稿尺寸（用于区域映射）
     void setLineArtSize(int width, int height);
     
+    // 设置线稿坐标原点偏移（用于正确映射）
+    void setLineArtOrigin(double originX, double originY);
+    
     // 设置绘制前延迟（毫秒）
     void setPreDrawDelay(int delayMs);
     
@@ -158,6 +161,8 @@ private:
     DrawingAreaSelector* areaSelector_;
     int lineArtWidth_;
     int lineArtHeight_;
+    double lineArtOriginX_;
+    double lineArtOriginY_;
     int preDrawDelayMs_;
     DrawPrecision precision_;
     

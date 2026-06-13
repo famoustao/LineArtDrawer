@@ -17,6 +17,8 @@ MousePainter::MousePainter(QObject* parent)
     , areaSelector_(nullptr)
     , lineArtWidth_(0)
     , lineArtHeight_(0)
+    , lineArtOriginX_(0)
+    , lineArtOriginY_(0)
     , preDrawDelayMs_(0)
     , precision_(DrawPrecision::Normal)
     , state_(DrawingState::Idle)
@@ -67,6 +69,11 @@ void MousePainter::setDrawingAreaSelector(DrawingAreaSelector* selector) {
 void MousePainter::setLineArtSize(int width, int height) {
     lineArtWidth_ = width;
     lineArtHeight_ = height;
+}
+
+void MousePainter::setLineArtOrigin(double originX, double originY) {
+    lineArtOriginX_ = originX;
+    lineArtOriginY_ = originY;
 }
 
 void MousePainter::setPreDrawDelay(int delayMs) {
@@ -498,12 +505,12 @@ void MousePainter::waitIfPaused() {
 
 QPoint MousePainter::mapPointToScreen(double x, double y) const {
     if (areaSelector_ && areaSelector_->isValid() && lineArtWidth_ > 0 && lineArtHeight_ > 0) {
-        return areaSelector_->mapPoint(x, y, lineArtWidth_, lineArtHeight_);
+        return areaSelector_->mapPoint(x, y, lineArtWidth_, lineArtHeight_, lineArtOriginX_, lineArtOriginY_);
     }
     
-    // 使用默认的偏移和缩放
-    int screenX = static_cast<int>(x * scale_ + offsetX_);
-    int screenY = static_cast<int>(y * scale_ + offsetY_);
+    // 使用默认的偏移和缩放（减去原点偏移）
+    int screenX = static_cast<int>((x - lineArtOriginX_) * scale_ + offsetX_);
+    int screenY = static_cast<int>((y - lineArtOriginY_) * scale_ + offsetY_);
     return QPoint(screenX, screenY);
 }
 
